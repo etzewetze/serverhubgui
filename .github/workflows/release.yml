@@ -61,7 +61,7 @@ jobs:
             "dist/Menue-Vorschau.png" \
             "dist/servers.yml" \
             --target "$GITHUB_SHA" \
-            --title "ServerHub $version – Zentrale Proxy-Konfiguration, Listen und Serverstatus" \
+            --title "ServerHub $version – Sleep-Erkennung, ServerNavigator und bearbeitbares Pack" \
             --notes-file RELEASE-NOTES.md \
             --latest
       - name: Verify public release downloads

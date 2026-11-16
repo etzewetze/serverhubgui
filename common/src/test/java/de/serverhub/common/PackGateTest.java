@@ -3,6 +3,11 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 class PackGateTest {
+    @Test void paperSuccessUsesTheSameExactIdGate(){
+        UUID id=UUID.randomUUID();var gate=new PackGate(id);
+        assertFalse(gate.accept(UUID.randomUUID(),"SUCCESSFULLY_LOADED"));
+        assertTrue(gate.accept(id,"SUCCESSFULLY_LOADED"));assertTrue(gate.ready());
+    }
     @Test void onlyOurSuccessfulPackUnlocksMenu(){
         UUID id=UUID.randomUUID();var gate=new PackGate(id);
         assertFalse(gate.ready());

@@ -6,6 +6,16 @@ import java.util.zip.GZIPOutputStream;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MenuSnapshotTest {
+    @Test void customFontMetricsAndControlStylesReachTheBackendTogether()throws Exception{
+        int[] widths=new int[192];Arrays.fill(widths,11);var fonts=new FontBook(Map.of("custom.16",widths));widths[0]=64;
+        var options=new MenuOptions(Map.of("menu.font-family","custom","menu.title-font-size","16","buttons.close.width","190","buttons.close.font-size","14","buttons.close.color","#12AB34","buttons.close.background-color","#98AABB","text.shadow","false"));
+        var entry=new MenuSnapshot.Entry("survival","Überleben","#FFFFFF",16,"",List.of(),MenuSnapshot.Status.STARTING,"mono");
+        var snapshot=new MenuSnapshot(UUID.randomUUID(),options,List.of(entry),fonts);
+        assertEquals(snapshot,MenuSnapshot.decode(List.of(snapshot.encode())));
+        assertEquals(22,fonts.width("AB","custom",16));assertEquals("sans",fonts.family("missing",12));
+        assertThrows(IllegalArgumentException.class,()->new MenuOptions(Map.of("buttons.next.width","20")));
+        assertThrows(IllegalArgumentException.class,()->new MenuOptions(Map.of("menu.font-family","unknown")));
+    }
     @Test void aCompleteConfigurationSurvivesTheNonceBoundChannel()throws Exception{
         var options=new MenuOptions(Map.of("menu.layout","list","menu.font-size","10","shift-f-hint.enabled","false"));
         var entries=java.util.stream.IntStream.range(0,256).mapToObj(i->new MenuSnapshot.Entry("server-"+i,"Überleben "+i,"#12AB34",12,"serverhub.vip",List.of("Für alle Gäste"),MenuSnapshot.Status.ONLINE)).toList();

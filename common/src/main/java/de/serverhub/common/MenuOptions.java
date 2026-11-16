@@ -9,9 +9,16 @@ public record MenuOptions(Map<String,String> values) {
         var m=new LinkedHashMap<String,Object>();
         m.put("menu.title","Serverauswahl");m.put("menu.title-color","#3D2817");
         m.put("menu.font-size",12);m.put("menu.text-color","#FFF4D6");
+        m.put("menu.font-family","sans");m.put("menu.title-font-size",12);m.put("menu.title-padding",12);m.put("menu.title-max-width",320);
+        m.put("menu.button-width",140);m.put("menu.button-background-color","#FFFFFF");m.put("menu.title-background-color","#FFFFFF");m.put("text.shadow",true);m.put("text.shadow-color","#24180E");
+        m.put("font.url","");m.put("font.refresh",false);m.put("integration.servernavigator",true);m.put("runtime.waiting",false);
         m.put("menu.layout","list");m.put("menu.navigation","scroll");m.put("menu.page-size",6);
         m.put("menu.show-page-info",true);m.put("menu.show-server-count",false);m.put("menu.single-page-info",false);
         m.put("menu.previous","Zurück");m.put("menu.next","Weiter");m.put("menu.close","Schließen");
+        for(String button:List.of("previous","next","close")){
+            m.put("buttons."+button+".font-size",10);m.put("buttons."+button+".color","#FFF4D6");
+            m.put("buttons."+button+".font-family","");m.put("buttons."+button+".width",140);m.put("buttons."+button+".background-color","#FFFFFF");
+        }
         m.put("status.enabled",true);m.put("status.ping-interval-seconds",10);m.put("status.timeout-ms",2000);
         m.put("shift-f-hint.enabled",true);m.put("shift-f-hint.interval-seconds",1);
         m.put("shift-f-hint.x-offset",106);m.put("shift-f-hint.y-offset",0);
@@ -24,6 +31,7 @@ public record MenuOptions(Map<String,String> values) {
         m.put("messages.full-inventory","&eFür das Menü-Icon fehlt ein freier Inventarplatz. Shift + F funktioniert weiterhin.");
         m.put("messages.unavailable","&cDieser Server ist gerade nicht erreichbar.");
         m.put("messages.already-connected","&eDu bist bereits auf diesem Server.");
+        m.put("messages.navigator-unavailable","&cServerNavigator benötigt die Integrationsschnittstelle ab Version 1.2.0 oder ist noch nicht bereit.");
         m.put("messages.denied","&cDer Proxy hat den Wechsel nicht erlaubt.");
         DEFAULTS=Collections.unmodifiableMap(m);
     }
@@ -31,7 +39,7 @@ public record MenuOptions(Map<String,String> values) {
         var next=new LinkedHashMap<String,String>();
         DEFAULTS.forEach((key,value)->next.put(key,String.valueOf(value)));
         values.forEach((key,value)->{
-            if(!DEFAULTS.containsKey(key)||value==null||value.length()>256)throw new IllegalArgumentException("Ungültige Einstellung: "+key);
+            if(!DEFAULTS.containsKey(key)||value==null||value.length()>(key.equals("font.url")?2048:256))throw new IllegalArgumentException("Ungültige Einstellung: "+key);
             Object standard=DEFAULTS.get(key);
             if(standard instanceof Boolean&&!Set.of("true","false").contains(value))throw new IllegalArgumentException("Boolean erwartet: "+key);
             if(standard instanceof Integer)Integer.parseInt(value);
@@ -40,7 +48,14 @@ public record MenuOptions(Map<String,String> values) {
         if(!Set.of("list","grid").contains(next.get("menu.layout")))throw new IllegalArgumentException("menu.layout: list oder grid");
         if(!Set.of("scroll","pages").contains(next.get("menu.navigation")))throw new IllegalArgumentException("menu.navigation: scroll oder pages");
         font(Integer.parseInt(next.get("menu.font-size")));
-        color(next.get("menu.title-color"));color(next.get("menu.text-color"));
+        font(Integer.parseInt(next.get("menu.title-font-size")));color(next.get("text.shadow-color"));
+        if(!FontBook.FAMILIES.contains(next.get("menu.font-family")))throw new IllegalArgumentException("menu.font-family: sans, serif, mono oder custom");
+        range(next,"menu.title-padding",4,40);if(Integer.parseInt(next.get("menu.title-max-width"))<Integer.parseInt(next.get("menu.title-padding"))*2+16)throw new IllegalArgumentException("Titelbreite ist zu klein für den Rand");range(next,"menu.title-max-width",64,600);range(next,"menu.button-width",80,300);
+        for(String button:List.of("previous","next","close")){
+            String prefix="buttons."+button+".";font(Integer.parseInt(next.get(prefix+"font-size")));color(next.get(prefix+"color"));color(next.get(prefix+"background-color"));range(next,prefix+"width",80,300);
+            if(!next.get(prefix+"font-family").isBlank()&&!FontBook.FAMILIES.contains(next.get(prefix+"font-family")))throw new IllegalArgumentException(prefix+"font-family ungültig");
+        }
+        color(next.get("menu.title-color"));color(next.get("menu.text-color"));color(next.get("menu.button-background-color"));color(next.get("menu.title-background-color"));
         range(next,"menu.page-size",1,50);range(next,"status.ping-interval-seconds",3,300);
         range(next,"status.timeout-ms",250,10000);range(next,"hotbar-icon.slot",0,8);
         range(next,"shift-f-hint.interval-seconds",1,2);range(next,"shift-f-hint.x-offset",94,512);
@@ -59,5 +74,5 @@ public record MenuOptions(Map<String,String> values) {
     public boolean scrolling(){return text("menu.navigation").equals("scroll");}
     public boolean pageInfo(int count){return !scrolling()&&flag("menu.show-page-info")&&(MenuLayout.pages(count,number("menu.page-size"))>1||flag("menu.single-page-info"));}
     public static void color(String value){if(value==null||!value.matches("#[0-9a-fA-F]{6}"))throw new IllegalArgumentException("Ungültige Hexfarbe: "+value);}
-    public static void font(int size){if(size!=8&&size!=10&&size!=12)throw new IllegalArgumentException("font-size: 8, 10 oder 12");}
+    public static void font(int size){if(Arrays.stream(FontBook.SIZES).noneMatch(n->n==size))throw new IllegalArgumentException("font-size: 8, 10, 12, 14 oder 16");}
 }

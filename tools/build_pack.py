@@ -20,8 +20,9 @@ def main():
     if OUT.exists():shutil.rmtree(OUT)
     source=ROOT/'art-source'
     gui=A/'textures/gui';gui.mkdir(parents=True,exist_ok=True)
-    button=Image.open(source/'buttons-source.png').convert('RGBA').resize((140,20),Image.Resampling.NEAREST)
+    button=Image.open(source/'buttons-source.png').convert('RGBA').crop((6,2,58,16)).resize((140,20),Image.Resampling.NEAREST)
     wood=Image.new('RGBA',(140,20),'#62431F');wood.alpha_composite(button)
+    ImageDraw.Draw(wood).rectangle((0,0,139,19),outline='#493016',width=2)
     wood.save(gui/'button.png')
     scroll=Image.new('RGBA',(220,30),(0,0,0,0));d=ImageDraw.Draw(scroll)
     d.rectangle((10,3,209,26),fill='#DEC18A',outline='#6A4829',width=1)
@@ -40,11 +41,15 @@ def main():
     info.save(gui/'info.png')
     dot=Image.new('RGBA',(6,6),(255,255,255,0));ImageDraw.Draw(dot).ellipse((0,0,5,5),fill='white');dot.save(gui/'status.png')
     save_json(A/'font/status.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/status.png','height':6,'ascent':6,'chars':['\uE300']}]})
-    save_json(A/'font/gui.json',{'providers':[
-        {'type':'bitmap','file':'serverhub:gui/scroll.png','height':30,'ascent':21,'chars':['\uE000']},
-        {'type':'bitmap','file':'serverhub:gui/button.png','height':20,'ascent':13,'chars':['\uE001']},
-        {'type':'bitmap','file':'serverhub:gui/info.png','height':20,'ascent':13,'chars':['\uE002']}
-    ]})
+    # Nine-slice glyphs let the client build a roll/button of the measured text width.
+    parts=[('scroll_left',scroll.crop((0,0,12,30)),0xE400,18),('scroll_mid',scroll.crop((110,0,111,30)),0xE401,18),('scroll_right',scroll.crop((208,0,220,30)),0xE402,18),
+           ('button_left',wood.crop((0,0,4,20)),0xE410,13),('button_mid',wood.crop((70,0,71,20)),0xE411,13),('button_right',wood.crop((136,0,140,20)),0xE412,13),
+           ('info_left',info.crop((0,0,4,20)),0xE420,13),('info_mid',info.crop((70,0,71,20)),0xE421,13),('info_right',info.crop((136,0,140,20)),0xE422,13)]
+    providers=[]
+    for name,image,code,ascent in parts:
+        image.save(gui/(name+'.png'));providers.append({'type':'bitmap','file':'serverhub:gui/'+name+'.png','height':image.height,'ascent':ascent,'chars':[chr(code)]})
+    providers.insert(0,{'type':'space','advances':{'\uF0FF':-1}})
+    save_json(A/'font/gui.json',{'providers':providers})
     advances={}
     for bit in range(11):
         advances[chr(0xF100+bit)]=-(1<<bit);advances[chr(0xF200+bit)]=1<<bit
@@ -52,24 +57,31 @@ def main():
     codes=list(range(32,128))+list(range(160,256))
     chars=[''.join(chr(c) for c in codes[i:i+16]) for i in range(0,len(codes),16)]
     widths=[]
-    for size in (8,10,12):
-        atlas=Image.new('RGBA',(256,16*len(chars)),(255,255,255,0))
-        font=ImageFont.truetype(str(source/'ServerHubSans-Bold.ttf'),size)
-        for index,code in enumerate(codes):
-            if code in (32,160):widths.append(f'{size}.{code}={max(3,size//2)}');continue
-            glyph=Image.new('L',(16,16),0)
-            ImageDraw.Draw(glyph).text((1,12),chr(code),font=font,fill=255,anchor='ls')
-            glyph=glyph.point(lambda v:255 if v>=100 else 0)
-            box=glyph.getbbox();advance=(box[2]if box else 0)+1
-            widths.append(f'{size}.{code}={advance}')
-            rgba=Image.new('RGBA',(16,16),(255,255,255,0));rgba.putalpha(glyph)
-            atlas.alpha_composite(rgba,((index%16)*16,(index//16)*16))
-        atlas.save(gui/f'latin_{size}.png')
-        save_json(A/f'font/label{size}.json',{'providers':[
-            {'type':'space','advances':{' ':max(3,size//2),'\u00a0':max(3,size//2)}},
-            {'type':'bitmap','file':f'serverhub:gui/latin_{size}.png','height':16,'ascent':11,'chars':chars}
-        ]})
-    (ROOT/'paper/src/main/resources/font-widths.properties').write_text('\n'.join(widths)+'\n')
+    families={'sans':'ServerHubSans-Bold.ttf','serif':'ServerHubSerif.ttf','mono':'ServerHubMono.ttf'}
+    (A/'fonts').mkdir(parents=True,exist_ok=True)
+    for family,font_file in families.items():
+        shutil.copyfile(source/font_file,A/f'fonts/{family}.ttf')
+        for size in (8,10,12,14,16):
+            atlas=Image.new('RGBA',(384,24*len(chars)),(255,255,255,0))
+            font=ImageFont.truetype(str(source/font_file),size)
+            for index,code in enumerate(codes):
+                if code in (32,160):widths.append(f'{family}.{size}.{code}={max(3,size//2)}');continue
+                glyph=Image.new('L',(24,24),0)
+                ImageDraw.Draw(glyph).text((1,18),chr(code),font=font,fill=255,anchor='ls')
+                glyph=glyph.point(lambda v:255 if v>=100 else 0)
+                box=glyph.getbbox();advance=(box[2]if box else 0)+1
+                widths.append(f'{family}.{size}.{code}={advance}')
+                rgba=Image.new('RGBA',(24,24),(255,255,255,0));rgba.putalpha(glyph)
+                atlas.alpha_composite(rgba,((index%16)*24,(index//16)*24))
+            atlas.save(gui/f'latin_{family}_{size}.png')
+            for shadow in (False,True):
+                save_json(A/f"font/label_{family}_{size}{'_shadow'if shadow else''}.json",{'providers':[
+                    {'type':'space','advances':{' ':max(3,size//2),'\u00a0':max(3,size//2)}},
+                    {'type':'bitmap','file':f'serverhub:gui/latin_{family}_{size}.png','height':24,'ascent':16 if shadow else 17,'chars':chars}
+                ]})
+    metrics='\n'.join(widths)+'\n'
+    (ROOT/'paper/src/main/resources/font-widths.properties').write_text(metrics)
+    (OUT/'serverhub-font-widths.properties').write_text(metrics)
     badge=Image.new('RGBA',(30,30),(0,0,0,0));bd=ImageDraw.Draw(badge)
     small=ImageFont.truetype(str(source/'ServerHubSans-Bold.ttf'),7)
     for index,text in enumerate(('Shift','+','F')):
@@ -87,7 +99,7 @@ def main():
     ]})
     save_json(A/'items/menu_icon.json',{'model':{'type':'minecraft:model','model':'serverhub:item/menu_icon'}})
     save_json(A/'models/item/menu_icon.json',{'parent':'minecraft:item/generated','textures':{'layer0':'serverhub:item/menu_icon'}})
-    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.3 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
+    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.4 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
     shutil.copyfile(source/'FONT-LICENSE.txt',OUT/'FONT-LICENSE.txt')
     package()
 

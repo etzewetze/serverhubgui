@@ -15,7 +15,7 @@ public final class PackGate {
         if (!packId.equals(id) || state == State.FAILED) return false;
         switch (status) {
             case "ACCEPTED", "DOWNLOADED" -> { return false; }
-            case "SUCCESSFUL" -> state = State.READY;
+            case "SUCCESSFUL", "SUCCESSFULLY_LOADED" -> state = State.READY;
             case "DECLINED", "FAILED_DOWNLOAD", "INVALID_URL", "FAILED_RELOAD", "DISCARDED" -> state = State.FAILED;
             default -> { return false; }
         }

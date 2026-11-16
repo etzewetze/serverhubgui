@@ -1,4 +1,5 @@
 package de.serverhub.velocity;
+import de.serverhub.common.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
@@ -6,6 +7,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 class ProxyConfigFilesTest {
+    @Test void previousGithubDefaultMovesToAutoAndPreservesItsBackup()throws Exception{
+        String previous="configuration-version=2\npack.mode=github\nself-host.port=8125\n";
+        Files.writeString(directory.resolve("config.properties"),previous);
+        assertTrue(ProxyConfigFiles.migrate(directory,defaults()));
+        assertEquals(previous,Files.readString(directory.resolve("config-v2.3-backup.properties")));
+        var p=new Properties();try(var reader=Files.newBufferedReader(directory.resolve("config.properties"))){p.load(reader);}
+        assertEquals("auto",p.getProperty("pack.mode"));assertEquals("8125",p.getProperty("self-host.port"));
+        assertFalse(ProxyConfigFiles.migrate(directory,defaults()));
+    }
     @TempDir Path directory;
     byte[] defaults()throws Exception{try(var input=getClass().getResourceAsStream("/config.properties")){return Objects.requireNonNull(input).readAllBytes();}}
     @Test void migrationPreservesOldConfigAndMovesFromPrivatePortToHttps()throws Exception{
@@ -14,7 +24,7 @@ class ProxyConfigFilesTest {
         assertTrue(ProxyConfigFiles.migrate(directory,defaults()));
         assertEquals(old,Files.readString(directory.resolve("config-v2.0-backup.properties")));
         Properties p=new Properties();try(var r=Files.newBufferedReader(directory.resolve("config.properties"),StandardCharsets.UTF_8)){p.load(r);}
-        assertEquals("github",p.getProperty("pack.mode"));assertEquals("180",p.getProperty("pack.timeout-seconds"));assertNull(p.getProperty("pack.url"));
+        assertEquals("auto",p.getProperty("pack.mode"));assertEquals("180",p.getProperty("pack.timeout-seconds"));assertNull(p.getProperty("pack.url"));
         assertFalse(ProxyConfigFiles.migrate(directory,defaults()));
     }
     @Test void explicitCustomModeIsNeverOverwritten()throws Exception{

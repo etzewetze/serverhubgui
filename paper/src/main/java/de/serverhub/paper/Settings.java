@@ -8,11 +8,11 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boolean icon, int slot,
-                boolean hint, int hintInterval, int handshakeTimeout, boolean automatic) {
+                boolean hint, int hintInterval, int handshakeTimeout, boolean automatic, de.serverhub.common.FontBook fonts) {
     record Entry(String key, String name, String target, String permission, TextColor color, int size, List<String> description,
-                 de.serverhub.common.MenuSnapshot.Status status) {
+                 de.serverhub.common.MenuSnapshot.Status status, String family) {
         Entry(String key,String name,String target,String permission,TextColor color,int size,List<String> description){
-            this(key,name,target,permission,color,size,description,de.serverhub.common.MenuSnapshot.Status.UNKNOWN);
+            this(key,name,target,permission,color,size,description,de.serverhub.common.MenuSnapshot.Status.UNKNOWN,"");
         }
     }
     private static final Pattern TARGET = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
@@ -36,7 +36,7 @@ record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boole
         }
         return new Settings(y, List.copyOf(entries), size, y.getBoolean("hotbar-icon.enabled", false), slot,
             y.getBoolean("shift-f-hint.enabled", true), Math.clamp(y.getInt("shift-f-hint.interval-seconds", 1),1,2),
-            Math.max(10, y.getInt("proxy.handshake-timeout-seconds", 30)), y.getBoolean("server-discovery.enabled", true));
+            Math.max(10, y.getInt("proxy.handshake-timeout-seconds", 30)), y.getBoolean("server-discovery.enabled", true),de.serverhub.common.FontBook.empty());
     }
     List<Entry> resolve(List<String> discovered) {
         if (!automatic) return entries;
@@ -58,15 +58,15 @@ record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boole
         return List.copyOf(result);
     }
     static int size(int n) {
-        if (n != 8 && n != 10 && n != 12) throw new IllegalArgumentException("font-size muss 8, 10 oder 12 sein");
+        de.serverhub.common.MenuOptions.font(n);
         return n;
     }
     static Settings fromNetwork(de.serverhub.common.MenuSnapshot snapshot){
         var y=new YamlConfiguration();var o=snapshot.options();
         de.serverhub.common.MenuOptions.DEFAULTS.keySet().forEach(key->y.set(key,o.typed(key)));
-        var entries=snapshot.entries().stream().map(e->new Entry(e.target(),e.name(),e.target(),e.permission(),color(e.color()),e.size(),e.description(),e.status())).toList();
+        var entries=snapshot.entries().stream().map(e->new Entry(e.target(),e.name(),e.target(),e.permission(),color(e.color()),e.size(),e.description(),e.status(),e.family())).toList();
         return new Settings(y,entries,o.number("menu.font-size"),o.flag("hotbar-icon.enabled"),o.number("hotbar-icon.slot"),
-            o.flag("shift-f-hint.enabled"),o.number("shift-f-hint.interval-seconds"),o.number("proxy.handshake-timeout-seconds"),false);
+            o.flag("shift-f-hint.enabled"),o.number("shift-f-hint.interval-seconds"),o.number("proxy.handshake-timeout-seconds"),false,snapshot.fonts());
     }
     de.serverhub.common.MenuOptions menuOptions(){
         var values=new LinkedHashMap<String,String>();

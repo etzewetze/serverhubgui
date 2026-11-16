@@ -1,4 +1,4 @@
-package de.serverhub.velocity;
+package de.serverhub.common;
 
 import com.sun.net.httpserver.*;
 import java.io.IOException;
@@ -8,21 +8,21 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.*;
 
 /** Serves only the cached ZIP, never a filesystem directory. */
-final class PackHost implements AutoCloseable {
+public final class PackHost implements AutoCloseable {
     private final HttpServer server;
     private final ExecutorService executor=Executors.newFixedThreadPool(4,Thread.ofPlatform().daemon().name("serverhub-http-",0).factory());
     private final AtomicReference<PackData> pack;
     private final ConcurrentMap<String,PackData> versions=new ConcurrentHashMap<>();
-    PackHost(String bind,int port,PackData initial) throws IOException {
+    public PackHost(String bind,int port,PackData initial) throws IOException {
         pack=new AtomicReference<>(initial);
         versions.put(initial.sha1(),initial);
         server=HttpServer.create(new InetSocketAddress(bind,port),16);
         server.createContext("/",this::serve);
         server.setExecutor(executor);server.start();
     }
-    void update(PackData next){versions.put(next.sha1(),next);pack.set(next);}
-    void retain(Set<String> active){versions.keySet().removeIf(sha->!active.contains(sha)&&!sha.equals(pack.get().sha1()));}
-    int port(){return server.getAddress().getPort();}
+    public void update(PackData next){versions.put(next.sha1(),next);pack.set(next);}
+    public void retain(Set<String> active){versions.keySet().removeIf(sha->!active.contains(sha)&&!sha.equals(pack.get().sha1()));}
+    public int port(){return server.getAddress().getPort();}
     private void serve(HttpExchange x) throws IOException {
         try(x) {
             if(!x.getRequestURI().getRawPath().equals("/serverhub.zip")){x.sendResponseHeaders(404,-1);return;}

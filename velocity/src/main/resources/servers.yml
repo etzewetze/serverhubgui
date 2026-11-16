@@ -1,11 +1,19 @@
-# ServerHub: diese eine Datei steuert das gesamte Netzwerk.
-# Registrierte Velocity-Server werden beim Start und regelmäßig ergänzt.
-# Farben und Schriftgröße können für jedes Ziel unter servers geändert werden.
-config-version: 1
+# ServerHub: diese Datei steuert das gesamte Netzwerk. /serverhubproxy reload
+# Ohne Proxy: plugins/ServerHub/servers.yml und /extramenu reload.
+# Neue Velocity-Ziele werden automatisch unter servers ergänzt.
+config-version: 2
 menu:
   title: Serverauswahl
   title-color: '#3D2817'
+  title-background-color: '#FFFFFF'
+  title-font-size: 12
+  title-padding: 12
+  title-max-width: 320
   text-color: '#FFF4D6'
+  button-background-color: '#FFFFFF'
+  button-width: 140
+  # sans, serif, mono oder custom. Größen: 8, 10, 12, 14, 16.
+  font-family: sans
   font-size: 12
   layout: list
   navigation: scroll
@@ -16,6 +24,35 @@ menu:
   previous: Zurück
   next: Weiter
   close: Schließen
+text:
+  shadow: true
+  shadow-color: '#24180E'
+font:
+  # Direkter HTTPS-Link zu einer TTF/OTF, keine Webseite/CSS/ZIP.
+  # Alternativ: pack/assets/serverhub/fonts/custom.ttf selbst ablegen.
+  url: ''
+  refresh: false
+buttons:
+  previous:
+    width: 140
+    font-size: 10
+    font-family: ''
+    color: '#FFF4D6'
+    background-color: '#FFFFFF'
+  next:
+    width: 140
+    font-size: 10
+    font-family: ''
+    color: '#FFF4D6'
+    background-color: '#FFFFFF'
+  close:
+    width: 140
+    font-size: 10
+    font-family: ''
+    color: '#FFF4D6'
+    background-color: '#FFFFFF'
+integration:
+  servernavigator: true
 status:
   enabled: true
   ping-interval-seconds: 10
@@ -28,8 +65,10 @@ shift-f-hint:
 hotbar-icon:
   enabled: false
   slot: 8
-# Pro Ziel werden name, color, font-size, permission, description, hidden,
-# order, status-override und sleep-motd-contains automatisch angelegt.
-# status-override: auto|online|offline|sleeping
-# sleep-motd-contains: [] — eindeutige Meldung des eigenen Schlaf-Plugins eintragen.
+# Pro Ziel: name, color, font-size, font-family, permission, description,
+# hidden, order, status-override und sleep-motd-contains.
+# Leere font-family übernimmt menu.font-family.
+# status-override: auto|online|offline|sleeping.
+# Paper-Pause wird automatisch erkannt; 0 Spieler allein ist kein Schlafsignal.
+# Für andere Schlaf-Proxys: eindeutige sleep-motd-contains-Kennung eintragen.
 servers: {}

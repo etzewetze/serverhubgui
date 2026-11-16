@@ -12,6 +12,11 @@ final class ProxyConfigFiles {
         Path config=directory.resolve("config.properties");
         if(!Files.exists(config)){Files.write(config,defaults,StandardOpenOption.CREATE_NEW);return false;}
         Properties old=new Properties();try(var r=Files.newBufferedReader(config,StandardCharsets.UTF_8)){old.load(r);}
+        if(old.getProperty("pack.mode","").equals("github")&&!old.getProperty("configuration-version","").equals("3")){
+            Path backup=directory.resolve("config-v2.3-backup.properties");for(int i=1;Files.exists(backup);i++)backup=directory.resolve("config-v2.3-backup-"+i+".properties");Files.copy(config,backup);
+            old.setProperty("configuration-version","3");old.setProperty("pack.mode","auto");
+            try(var writer=Files.newBufferedWriter(config,StandardCharsets.UTF_8)){old.store(writer,"ServerHub: Standardpaket oder eigene Packdateien automatisch ausliefern");}return true;
+        }
         if(old.containsKey("configuration-version")||old.containsKey("pack.mode"))return false;
         Properties next=new Properties();try(var r=new InputStreamReader(new ByteArrayInputStream(defaults),StandardCharsets.UTF_8)){next.load(r);}
         for(String key:new String[]{"pack.file","pack.timeout-seconds","pack.prompt","pack.kick"})if(old.containsKey(key))next.setProperty(key,old.getProperty(key));

@@ -1,5 +1,6 @@
 package de.serverhub.velocity;
 
+import de.serverhub.common.CentralMenuConfig;
 import com.velocitypowered.api.proxy.server.*;
 import de.serverhub.common.MenuSnapshot.Status;
 import net.kyori.adventure.text.*;
@@ -38,6 +39,7 @@ final class ServerStatusMonitor {
     static Status classify(ServerPing ping,Throwable error,CentralMenuConfig.Server settings){
         if(!settings.override().equals("auto"))return Status.valueOf(settings.override().toUpperCase(Locale.ROOT));
         if(error!=null||ping==null)return Status.OFFLINE;
+        if(de.serverhub.common.SleepSignal.paused(ping.getVersion().getName()))return Status.SLEEPING;
         String text=(plain(ping.getDescriptionComponent())+" "+ping.getVersion().getName()).toLowerCase(Locale.ROOT);
         if(settings.sleepMarkers().stream().anyMatch(marker->text.contains(marker.toLowerCase(Locale.ROOT))))return Status.SLEEPING;
         return Status.ONLINE;

@@ -35,19 +35,23 @@ public final class ServerHubVelocity {
     private final ServerStatusMonitor statusMonitor=new ServerStatusMonitor();
     private ScheduledTask discoveryTask;
     private boolean started;
+    private final Object reloadLock=new Object();
+    private final NavigatorBridge navigator;
+    private volatile FontBook currentFonts=FontBook.empty();
     private final ExecutorService diagnostics=Executors.newVirtualThreadPerTaskExecutor();
     private record Link(String server,UUID nonce) {}
     private static final class Gate {
         final PackGate state;
         final Player owner;
         final String sha,url;
+        final FontBook fonts;
         volatile ScheduledTask timeout;
         long lastSwitch;
-        Gate(Player owner,PackData pack,String url){this.owner=owner;this.sha=pack.sha1();this.url=url;state=new PackGate(pack.id());}
+        Gate(Player owner,PackData pack,String url,FontBook fonts){this.fonts=fonts;this.owner=owner;this.sha=pack.sha1();this.url=url;state=new PackGate(pack.id());}
         void cancel(){if(timeout!=null)timeout.cancel();}
     }
     @Inject public ServerHubVelocity(ProxyServer proxy,Logger logger,@DataDirectory Path directory){
-        this.proxy=proxy;this.logger=logger;this.directory=directory.toAbsolutePath().normalize();this.menus=new CentralMenuConfig(this.directory);
+        this.proxy=proxy;this.logger=logger;this.directory=directory.toAbsolutePath().normalize();this.menus=new CentralMenuConfig(this.directory);this.navigator=new NavigatorBridge(proxy);
     }
     @Subscribe public void initialize(ProxyInitializeEvent event){
         proxy.getChannelRegistrar().register(CHANNEL);
@@ -58,11 +62,6 @@ public final class ServerHubVelocity {
                 if(defaults==null)throw new IOException("Standardkonfiguration fehlt");
                 if(ProxyConfigFiles.migrate(directory,defaults.readAllBytes()))logger.info("Alte 2.0-Konfiguration gesichert; Paket wird jetzt über den GitHub-Release geladen.");
             }
-            copyDefault("serverhub-pack.zip");
-            try(var bundled=getClass().getResourceAsStream("/serverhub-pack.zip")){
-                if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
-                if(BundledPackFiles.upgrade(directory,bundled.readAllBytes()))logger.info("Vorheriges Standardpaket gesichert und für das neue Menü aktualisiert.");
-            }
             reload();started=true;scheduleDiscovery();
         }catch(Exception e){logger.error("ServerHub-Konfiguration fehlerhaft. Neue Spieler werden abgewiesen: {}",e.getMessage());}
     }
@@ -72,18 +71,23 @@ public final class ServerHubVelocity {
             if(input==null)throw new IOException("Mitgelieferte Datei fehlt: "+name);Files.copy(input,path);
         }
     }
-    synchronized void reload() throws IOException {
-        ProxySettings next=ProxySettings.read(directory),old=settings;
-        if(old!=null&&(old.http()!=next.http()||old.port()!=next.port()||!old.bind().equals(next.bind())))
-            throw new IOException("HTTP-Bind, Port oder Aktivierung geändert: Proxy vollständig neu starten");
-        var menu=menus.load(proxy.getAllServers().stream().map(s->s.getServerInfo().getName()).toList());
-        if(host==null&&next.http())host=new PackHost(next.bind(),next.port(),next.pack());
-        else if(host!=null)host.update(next.pack());
-        statusMonitor.configure(menu);
-        settings=next;
-        logger.info("ServerHub: Modus {}, SHA-1 {}, Paket-ID {}. Genau ein Angebot pro Netzwerkbeitritt; Reload fordert keine Pakete erneut an.",next.mode(),next.pack().sha1(),next.pack().id());
-        retainHostedPacks();
-        if(started){scheduleDiscovery();for(Player player:proxy.getAllPlayers())sendMenu(player);}
+    void reload() throws IOException {
+        synchronized(reloadLock){
+            var candidate=new CentralMenuConfig(directory).load(proxy.getAllServers().stream().map(s->s.getServerInfo().getName()).toList());
+            try(var bundled=getClass().getResourceAsStream("/serverhub-pack.zip")){
+                if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
+                PackWorkspace.prepare(directory,bundled.readAllBytes(),candidate.options());
+            }
+            ProxySettings next=ProxySettings.read(directory);FontBook fonts=next.pack().fonts();
+            new MenuSnapshot(candidate.revision(),candidate.options(),candidate.servers().stream().filter(s->!s.hidden()).map(CentralMenuConfig.Server::entry).toList(),fonts).encode();
+            synchronized(this){
+                if(host!=null&&settings!=null&&(settings.port()!=next.port()||!settings.bind().equals(next.bind())))throw new IOException("HTTP-Bind oder Port geändert: Proxy vollständig neu starten");
+                if(host==null&&next.http())host=new PackHost(next.bind(),next.port(),next.pack());else if(host!=null)host.update(next.pack());
+                menus.adopt(candidate);statusMonitor.configure(candidate);currentFonts=fonts;settings=next;retainHostedPacks();
+            }
+            logger.info("ServerHub: Paketmodus {}, SHA-1 {}. pack/ ist die bearbeitbare Quelle; neue Paketversionen gelten für neue Netzwerkverbindungen.",next.mode(),next.pack().sha1());
+            if(started){scheduleDiscovery();for(Player player:proxy.getAllPlayers())sendMenu(player);}
+        }
     }
     private void retainHostedPacks(){if(host!=null)host.retain(gates.values().stream().map(g->g.sha).collect(java.util.stream.Collectors.toSet()));}
     private Component kickText(){var c=settings;return Component.text(c==null?"ServerHub ist noch nicht korrekt konfiguriert. Bitte informiere das Serverteam.":c.kick(),NamedTextColor.RED);}
@@ -98,7 +102,7 @@ public final class ServerHubVelocity {
         String url;
         try{url=c.url(p.getVirtualHost().map(address->address.getHostString()).orElse(null));}
         catch(IllegalArgumentException e){logger.error("Paketadresse für {} ungültig: {}",p.getUsername(),e.getMessage());p.disconnect(kickText());return;}
-        Gate next=new Gate(p,c.pack(),url);
+        Gate next=new Gate(p,c.pack(),url,currentFonts);
         gates.put(p.getUniqueId(),next);
         sendState(p);
         next.timeout=proxy.getScheduler().buildTask(this,()->{
@@ -171,8 +175,11 @@ public final class ServerHubVelocity {
     private void sendCatalog(Player p){send(p,Wire.Type.CATALOG,visibleServers(p).stream().map(s->s.entry().target()).toArray(String[]::new));}
     private void sendMenu(Player p){
         var state=menus.current();if(state==null)return;
-        var entries=visibleServers(p).stream().map(s->{var e=s.entry();return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),statusMonitor.status(s,state));}).toList();
-        try{send(p,Wire.Type.MENU,new MenuSnapshot(state.revision(),state.options(),entries).encode());}
+        boolean integrate=state.options().flag("integration.servernavigator");
+        var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=statusMonitor.status(s,state);if(integrate)status=navigator.status(e.target(),status);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family());}).toList();
+        var values=new LinkedHashMap<>(state.options().values());values.put("runtime.waiting",Boolean.toString(integrate&&navigator.waiting(p.getUniqueId())));
+        Gate gate=gates.get(p.getUniqueId());FontBook fonts=gate==null?currentFonts:gate.fonts;
+        try{send(p,Wire.Type.MENU,new MenuSnapshot(state.revision(),new MenuOptions(values),entries,fonts).encode());}
         catch(IllegalArgumentException e){logger.warn("Zentrale Menükonfiguration kann nicht übertragen werden: {}",e.getMessage());}
     }
     private void scheduleDiscovery(){
@@ -204,6 +211,11 @@ public final class ServerHubVelocity {
         var registered=proxy.getServer(target);
         if(registered.isEmpty()){send(p,Wire.Type.RESULT,"unavailable");return;}
         if(p.getCurrentServer().filter(c->c.getServer().equals(registered.get())).isPresent()){send(p,Wire.Type.RESULT,"already");return;}
+        if(menus.current().options().flag("integration.servernavigator")){
+            var result=navigator.navigate(p,target);
+            if(result==NavigatorBridge.Result.HANDLED){sendMenu(p);return;}
+            if(result==NavigatorBridge.Result.UNSUPPORTED||result==NavigatorBridge.Result.FAILED){send(p,Wire.Type.RESULT,"navigator");return;}
+        }
         p.createConnectionRequest(registered.get()).connect().whenComplete((result,error)->{
             if(error!=null||result==null||!result.isSuccessful())send(p,Wire.Type.RESULT,"unavailable");
         });
@@ -220,8 +232,9 @@ public final class ServerHubVelocity {
             if(!hasPermission(i))return;
             if(i.arguments().length!=1){i.source().sendMessage(Component.text("/serverhubproxy reload | status | packcheck"));return;}
             if(i.arguments()[0].equalsIgnoreCase("reload")) {
-                try{reload();i.source().sendMessage(Component.text("ServerHub-Proxy neu geladen.",NamedTextColor.GREEN));}
-                catch(Exception e){logger.warn("ServerHub-Reload abgelehnt: {}",e.getMessage());i.source().sendMessage(Component.text("Reload abgelehnt: "+e.getMessage(),NamedTextColor.RED));}
+                i.source().sendMessage(Component.text("Prüfe Konfiguration und packe Ressourcen …",NamedTextColor.YELLOW));
+                diagnostics.submit(()->{try{reload();i.source().sendMessage(Component.text("ServerHub-Proxy und Ressourcen neu geladen. Bei geändertem Paket neu verbinden.",NamedTextColor.GREEN));}
+                catch(Exception e){logger.warn("ServerHub-Reload abgelehnt: {}",e.getMessage());i.source().sendMessage(Component.text("Reload abgelehnt: "+e.getMessage(),NamedTextColor.RED));}});
             }else if(i.arguments()[0].equalsIgnoreCase("status")){
                 var c=settings;
                 i.source().sendMessage(Component.text(c==null?"ServerHub-Konfiguration fehlerhaft.":"Paketpflicht aktiv; Modus "+c.mode()+"; SHA-1 "+c.pack().sha1()+"; Netzwerksitzungen "+gates.size()+"; zentrale Datei servers.yml; erfasste Ziele "+menus.current().servers().size()));

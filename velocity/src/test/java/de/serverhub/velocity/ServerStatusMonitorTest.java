@@ -9,6 +9,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ServerStatusMonitorTest {
+    @Test void aPausedPaperReplyIsYellowEvenWhileItStillAcceptsPings(){
+        var auto=settings("auto",List.of());String sleeping=SleepSignal.version("Paper 26.3",true);
+        var reply=ServerPing.builder().version(new ServerPing.Version(774,sleeping)).description(Component.text("Willkommen")).onlinePlayers(0).maximumPlayers(100).build();
+        assertEquals(MenuSnapshot.Status.SLEEPING,ServerStatusMonitor.classify(reply,null,auto));
+        String awake=SleepSignal.version(sleeping,false);assertFalse(SleepSignal.paused(awake));assertFalse(awake.contains("paused=1"));
+        var resumed=ServerPing.builder().version(new ServerPing.Version(774,awake)).description(Component.text("Willkommen")).build();
+        assertEquals(MenuSnapshot.Status.ONLINE,ServerStatusMonitor.classify(resumed,null,auto));
+    }
     CentralMenuConfig.Server settings(String override,List<String> markers){return new CentralMenuConfig.Server(new MenuSnapshot.Entry("lobby","Lobby","#FFFFFF",12,"",List.of(),MenuSnapshot.Status.UNKNOWN),false,0,override,markers);}
     ServerPing ping(String description){return ServerPing.builder().version(new ServerPing.Version(774,"Paper")).description(Component.text(description)).onlinePlayers(0).maximumPlayers(100).build();}
     @Test void emptyOnlineServersStayGreenAndOnlyExplicitSignalsTurnYellow(){

@@ -1,10 +1,12 @@
 package de.serverhub.velocity;
+import de.serverhub.common.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+import de.serverhub.common.CentralMenuConfig;
 class CentralMenuConfigTest {
     @TempDir Path directory;
     @Test void discoversAllTargetsInOneFileAndPreservesEditsWhenAnotherIsAdded()throws Exception{

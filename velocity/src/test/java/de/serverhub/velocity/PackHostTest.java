@@ -1,4 +1,5 @@
 package de.serverhub.velocity;
+import de.serverhub.common.*;
 import org.junit.jupiter.api.Test;
 import java.net.*;
 import java.net.http.*;

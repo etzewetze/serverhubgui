@@ -37,13 +37,22 @@ class UniversalJarIT {
     }
     @Test void packagedProxyConfigurationCanLoadItsPrivateYamlParserWithoutBukkit()throws Exception{
         try(var loader=new PlatformLoader(jar.toUri().toURL(),"org.bukkit.")){
-            Class<?> config=loader.loadClass("de.serverhub.velocity.CentralMenuConfig");
+            Class<?> config=loader.loadClass("de.serverhub.common.CentralMenuConfig");
             var constructor=config.getDeclaredConstructor(Path.class);constructor.setAccessible(true);
             Object instance=constructor.newInstance(directory);
             var load=config.getDeclaredMethod("load",Collection.class);load.setAccessible(true);load.invoke(instance,List.of("lobby","survival"));
             String yaml=java.nio.file.Files.readString(directory.resolve("servers.yml"));
             assertTrue(yaml.contains("lobby:"));assertTrue(yaml.contains("survival:"));
             assertNotNull(loader.loadClass("de.serverhub.libs.snakeyaml.Yaml"));
+        }
+    }
+    @Test void theShadedPackBuilderRunsWithoutEitherServerApi()throws Exception{
+        try(var loader=new PlatformLoader(jar.toUri().toURL(),"org.bukkit.");var archive=new JarFile(jar.toFile())){
+            byte[] bundled=archive.getInputStream(archive.getJarEntry("serverhub-pack.zip")).readAllBytes();
+            Class<?> options=loader.loadClass("de.serverhub.common.MenuOptions");Object defaults=options.getMethod("defaults").invoke(null);
+            Object built=loader.loadClass("de.serverhub.common.PackWorkspace").getMethod("prepare",Path.class,byte[].class,options).invoke(null,directory,bundled,defaults);
+            assertArrayEquals(bundled,(byte[])built.getClass().getMethod("bytes").invoke(built));
+            assertNotNull(built.getClass().getMethod("fonts").invoke(built));
         }
     }
     @Test void jarIncludesBothDescriptorsAndTheExactPackButNoServerApis()throws Exception{

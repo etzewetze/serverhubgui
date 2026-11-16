@@ -3,15 +3,15 @@
     {
       "type": "space",
       "advances": {
-        " ": 6,
-        " ": 6
+        " ": 8,
+        " ": 8
       }
     },
     {
       "type": "bitmap",
-      "file": "serverhub:gui/latin_12.png",
-      "height": 16,
-      "ascent": 11,
+      "file": "serverhub:gui/latin_serif_16.png",
+      "height": 24,
+      "ascent": 17,
       "chars": [
         " !\"#$%&'()*+,-./",
         "0123456789:;<=>?",

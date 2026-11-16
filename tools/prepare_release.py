@@ -20,7 +20,7 @@ def main():
         if z.read("serverhub-pack.zip")!=pack.read_bytes():raise SystemExit("Bundled ZIP differs")
         if json.loads(z.read("velocity-plugin.json"))["version"]!=version:raise SystemExit("Velocity descriptor version differs")
         if f"version: {version}"not in z.read("plugin.yml").decode():raise SystemExit("Paper descriptor version differs")
-    if f"/v{version}/serverhub-pack.zip"not in (ROOT/"velocity/src/main/java/de/serverhub/velocity/PackUrls.java").read_text():raise SystemExit("Fixed release URL version differs")
+    if f"/v{version}/serverhub-pack.zip"not in (ROOT/"common/src/main/java/de/serverhub/common/PackUrls.java").read_text():raise SystemExit("Fixed release URL version differs")
     tests=[]
     reports=list(ROOT.glob("*/target/surefire-reports/TEST-*.xml"))+list(ROOT.glob("*/target/failsafe-reports/TEST-*.xml"))
     if not reports:raise SystemExit("No test reports; run mvn clean verify first")

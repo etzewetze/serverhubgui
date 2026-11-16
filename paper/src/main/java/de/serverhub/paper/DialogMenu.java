@@ -29,34 +29,36 @@ final class DialogMenu {
             for(String line:entry.description())tooltip=tooltip.appendNewline().append(Component.text(line,NamedTextColor.GRAY));
             if(options.flag("status.enabled"))tooltip=tooltip.appendNewline().append(Component.text("Status: "+statusText(entry.status()),NamedTextColor.GRAY));
             tooltip=tooltip.appendNewline().append(Component.text("Ziel: "+entry.target(),NamedTextColor.DARK_GRAY));
-            buttons.add(button(player,gui.server(entry.name(),entry.size(),entry.color(),entry.status(),options.flag("status.enabled")),tooltip,dispatch,()->choose.accept(entry)));
+            buttons.add(button(player,gui.server(entry,options),tooltip,options.number("menu.button-width"),dispatch,()->choose.accept(entry)));
         }
         if(pages>1){
-            align(buttons,columns);
-            buttons.add(button(player,gui.button(options.text("menu.previous"),10,NamedTextColor.WHITE),Component.text("Vorherige Seite"),dispatch,()->navigate.accept(page-1)));
-            if(columns==1||columns==2)buttons.add(button(player,gui.button(options.text("menu.next"),10,NamedTextColor.WHITE),Component.text("Nächste Seite"),dispatch,()->navigate.accept(page+1)));
+            align(buttons,columns,options.number("menu.button-width"));
+            buttons.add(button(player,navigation(gui,options,"previous"),Component.text("Vorherige Seite"),options.number("buttons.previous.width"),dispatch,()->navigate.accept(page-1)));
+            buttons.add(button(player,navigation(gui,options,"next"),Component.text("Nächste Seite"),options.number("buttons.next.width"),dispatch,()->navigate.accept(page+1)));
         }
         boolean info=options.pageInfo(entries.size());boolean count=options.flag("menu.show-server-count");
         if(info||count){
-            align(buttons,columns);
+            align(buttons,columns,options.number("menu.button-width"));
             String text=info?"Seite "+(page+1)+" / "+pages:"";
-            if(columns==1){if(count)text+=(text.isBlank()?"":" · ")+entries.size()+" Server";buttons.add(information(gui,text));}
-            else {buttons.add(information(gui,text));buttons.add(information(gui,count?entries.size()+" Server":""));}
+            if(columns==1){if(count)text+=(text.isBlank()?"":" · ")+entries.size()+" Server";buttons.add(information(gui,text,options));}
+            else {buttons.add(information(gui,text,options));buttons.add(information(gui,count?entries.size()+" Server":"",options));}
         }
-        var body=new ArrayList<DialogBody>();body.add(DialogBody.plainMessage(Component.text("\n"),300));
+        var body=new ArrayList<DialogBody>();
+        body.add(DialogBody.plainMessage(Component.newline().append(gui.heading(options.text("menu.title"),Settings.color(options.text("menu.title-color")),options)).appendNewline().appendNewline(),options.number("menu.title-max-width")));
         if(entries.isEmpty())body.add(DialogBody.plainMessage(Component.text("Keine freigegebenen Server gefunden.",NamedTextColor.GRAY),300));
-        ActionButton close=button(player,gui.button(options.text("menu.close"),10,NamedTextColor.WHITE),Component.text("Zurück zum Spiel"),dispatch,player::closeDialog);
+        ActionButton close=button(player,navigation(gui,options,"close"),Component.text("Zurück zum Spiel"),options.number("buttons.close.width"),dispatch,player::closeDialog);
         player.showDialog(Dialog.create(builder->builder.empty()
-            .base(DialogBase.builder(gui.heading(options.text("menu.title"),Settings.color(options.text("menu.title-color"))))
+            .base(DialogBase.builder(Component.empty())
                 .externalTitle(Component.text(options.text("menu.title"))).canCloseWithEscape(true).pause(false)
                 .afterAction(DialogBase.DialogAfterAction.CLOSE).body(body).build())
             .type(buttons.isEmpty()?DialogType.notice(close):DialogType.multiAction(buttons,close,columns))));
     }
-    private static void align(List<ActionButton> buttons,int columns){if(buttons.size()%columns!=0)buttons.add(ActionButton.create(Component.empty(),null,140,null));}
-    private static ActionButton information(GuiText gui,String text){return ActionButton.create(gui.information(text),null,140,null);}
-    static String statusText(MenuSnapshot.Status status){return switch(status){case ONLINE->"Online";case OFFLINE->"Nicht erreichbar";case SLEEPING->"Schläft";case UNKNOWN->"Wird geprüft";};}
-    private static ActionButton button(Player owner,Component label,Component tooltip,Consumer<Runnable> dispatch,Runnable run){
-        return ActionButton.create(label,tooltip,140,DialogAction.customClick((view,audience)->{
+    private static void align(List<ActionButton> buttons,int columns,int width){if(buttons.size()%columns!=0)buttons.add(ActionButton.create(Component.empty(),null,width,null));}
+    private static ActionButton information(GuiText gui,String text,MenuOptions options){int width=options.number("menu.button-width");return ActionButton.create(gui.information(text,width,options),null,width,null);}
+    private static Component navigation(GuiText gui,MenuOptions options,String button){String p="buttons."+button+".";return gui.button(options.text("menu."+button),options.number(p+"font-size"),Settings.color(options.text(p+"color")),options.number(p+"width"),options.text(p+"font-family"),Settings.color(options.text(p+"background-color")),options);}
+    static String statusText(MenuSnapshot.Status status){return switch(status){case ONLINE->"Online";case OFFLINE->"Nicht erreichbar";case SLEEPING->"Schläft";case STARTING->"Startet / wartet auf Aufnahme";case UNKNOWN->"Wird geprüft";};}
+    private static ActionButton button(Player owner,Component label,Component tooltip,int width,Consumer<Runnable> dispatch,Runnable run){
+        return ActionButton.create(label,tooltip,width,DialogAction.customClick((view,audience)->{
             if(audience instanceof Player actor&&actor.getUniqueId().equals(owner.getUniqueId()))dispatch.accept(run);
         },ClickCallback.Options.builder().uses(1).lifetime(Duration.ofMinutes(10)).build()));
     }

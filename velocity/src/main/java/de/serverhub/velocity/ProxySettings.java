@@ -1,5 +1,7 @@
 package de.serverhub.velocity;
 
+import de.serverhub.common.PackUrls;
+import de.serverhub.common.PackData;
 import java.io.*;
 import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
@@ -7,10 +9,11 @@ import java.util.*;
 
 record ProxySettings(Mode mode,String externalUrl,PackData pack,int timeout,String prompt,String kick,
                      String bind,int port,String publicHost,String scheme,int advertisedPort) {
-    enum Mode { GITHUB, SELF_HOST, EXTERNAL }
+    enum Mode { AUTO, GITHUB, SELF_HOST, EXTERNAL }
     boolean http(){return mode==Mode.SELF_HOST;}
     String url(String joiningHost){
         return switch(mode){
+            case AUTO -> throw new IllegalStateException("Unaufgelöster Paketmodus");
             case GITHUB -> PackUrls.RELEASE_URL;
             case EXTERNAL -> externalUrl;
             case SELF_HOST -> PackUrls.selfHosted(scheme,publicHost.equalsIgnoreCase("auto")?joiningHost:publicHost,advertisedPort,pack.sha1());
@@ -20,8 +23,8 @@ record ProxySettings(Mode mode,String externalUrl,PackData pack,int timeout,Stri
         Properties p=new Properties();
         try(var r=Files.newBufferedReader(directory.resolve("config.properties"),StandardCharsets.UTF_8)){p.load(r);}
         Mode mode;
-        try{mode=Mode.valueOf(p.getProperty("pack.mode","github").trim().replace('-','_').toUpperCase(Locale.ROOT));}
-        catch(IllegalArgumentException e){throw new IOException("pack.mode muss github, self-host oder external sein",e);}
+        try{mode=Mode.valueOf(p.getProperty("pack.mode","auto").trim().replace('-','_').toUpperCase(Locale.ROOT));}
+        catch(IllegalArgumentException e){throw new IOException("pack.mode muss auto, github, self-host oder external sein",e);}
         String external="";
         try{if(mode==Mode.EXTERNAL)external=PackUrls.external(p.getProperty("pack.external-url",""));}
         catch(IllegalArgumentException e){throw new IOException(e.getMessage(),e);}
@@ -38,11 +41,11 @@ record ProxySettings(Mode mode,String externalUrl,PackData pack,int timeout,Stri
             try{PackUrls.selfHosted(scheme,host,advertised,"0".repeat(40));}catch(IllegalArgumentException e){throw new IOException(e.getMessage(),e);}
         }
         PackData pack=PackData.read(packPath);
-        if(mode==Mode.GITHUB){
-            try(var bundled=ProxySettings.class.getResourceAsStream("/serverhub-pack.zip")){
-                if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
-                if(!java.util.Arrays.equals(pack.bytes(),bundled.readAllBytes()))throw new IOException("Im GitHub-Modus muss pack.file die mitgelieferte ZIP enthalten. Für eigene Texturen self-host oder external verwenden.");
-            }
+        try(var bundled=ProxySettings.class.getResourceAsStream("/serverhub-pack.zip")){
+            if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
+            boolean stock=java.util.Arrays.equals(pack.bytes(),bundled.readAllBytes());
+            if(mode==Mode.AUTO)mode=stock?Mode.GITHUB:Mode.SELF_HOST;
+            if(mode==Mode.GITHUB&&!stock)throw new IOException("Eigenes Paket erkannt: pack.mode=auto oder self-host verwenden.");
         }
         return new ProxySettings(mode,external,pack,timeout,
             p.getProperty("pack.prompt","Dieses Netzwerk benötigt das Menüpaket."),

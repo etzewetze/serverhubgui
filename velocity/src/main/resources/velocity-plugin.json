@@ -1,1 +1,1 @@
-{"id":"serverhub-velocity","name":"ServerHub Velocity","version":"2.3.0","description":"Einmaliges Pflichtpaket pro Netzwerkbeitritt und native Serverwechsel","authors":["ServerHub"],"main":"de.serverhub.velocity.ServerHubVelocity"}
+{"id":"serverhub-velocity","name":"ServerHub Velocity","version":"2.4.0","description":"Einmaliges Pflichtpaket pro Netzwerkbeitritt und native Serverwechsel","authors":["ServerHub"],"dependencies":[{"id":"servernavigator","optional":true}],"main":"de.serverhub.velocity.ServerHubVelocity"}

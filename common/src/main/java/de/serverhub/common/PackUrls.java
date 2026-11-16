@@ -1,18 +1,18 @@
-package de.serverhub.velocity;
+package de.serverhub.common;
 
 import java.net.*;
 
-final class PackUrls {
-    static final String RELEASE_URL="https://github.com/etzewetze/serverhubgui/releases/download/v2.3.0/serverhub-pack.zip";
+public final class PackUrls {
+    public static final String RELEASE_URL="https://github.com/etzewetze/serverhubgui/releases/download/v2.4.0/serverhub-pack.zip";
     private PackUrls(){}
-    static String external(String raw){
+    public static String external(String raw){
         URI uri=URI.create(raw==null?"":raw.trim());
         if(!("https".equalsIgnoreCase(uri.getScheme())||"http".equalsIgnoreCase(uri.getScheme()))
             ||uri.getHost()==null||uri.getUserInfo()!=null||uri.getFragment()!=null||uri.toASCIIString().length()>2048)
             throw new IllegalArgumentException("Die externe Paketadresse muss eine vollständige HTTP(S)-ZIP-URL ohne Zugangsdaten oder Fragment sein");
         return uri.toASCIIString();
     }
-    static String selfHosted(String scheme,String host,int port,String sha){
+    public static String selfHosted(String scheme,String host,int port,String sha){
         if(host==null||host.isBlank())throw new IllegalArgumentException("Öffentlicher Host fehlt; self-host.public-host setzen");
         if(host.startsWith("[")&&host.endsWith("]"))host=host.substring(1,host.length()-1);
         try{

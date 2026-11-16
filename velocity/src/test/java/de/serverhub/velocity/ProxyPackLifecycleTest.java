@@ -1,5 +1,8 @@
 package de.serverhub.velocity;
+import de.serverhub.common.*;
 
+import de.serverhub.common.PackUrls;
+import de.serverhub.common.PackData;
 import com.velocitypowered.api.proxy.*;
 import com.velocitypowered.api.proxy.player.ResourcePackInfo;
 import com.velocitypowered.api.event.player.*;
@@ -66,12 +69,9 @@ class ProxyPackLifecycleTest {
     }
     @Test void packChangesAndReloadDoNotPromptExistingPlayersAgain()throws Exception{
         setup("https://example.org/serverhub.zip");connect();status(packId,PlayerResourcePackStatusEvent.Status.SUCCESSFUL);
-        try(var zip=new ZipOutputStream(Files.newOutputStream(directory.resolve("serverhub-pack.zip")))){
-            for(String name:List.of("pack.mcmeta","assets/serverhub/font/gui.json","assets/serverhub/items/menu_icon.json")){
-                zip.putNextEntry(new ZipEntry(name));zip.write("{\"new\":true}".getBytes());zip.closeEntry();
-            }
-        }
+        Files.writeString(directory.resolve("pack/meine-aenderung.txt"),"Bearbeitetes Paket");
         plugin.reload();connect();
+        assertNotEquals(packId,PackData.read(directory.resolve("serverhub-pack.zip")).id());
         verify(player,times(1)).sendResourcePackOffer(any());verify(timeout).cancel();
         callback.getValue().run();verify(player,never()).disconnect(any());
     }
@@ -158,5 +158,19 @@ class ProxyPackLifecycleTest {
         assertEquals("Treffpunkt",snapshot.entries().getFirst().name());assertEquals("#123456",snapshot.entries().getFirst().color());
         assertEquals(10,snapshot.entries().getFirst().size());assertTrue(snapshot.options().scrolling());assertFalse(snapshot.options().pageInfo(20));
         verify(player,times(1)).sendResourcePackOffer(any());
+    }
+    @Test void navigatorOwnsManagedRequestsAndServerHubDoesNotBypassTheStartDelay()throws Exception{
+        setup("https://example.org/serverhub.zip");connect();status(packId,PlayerResourcePackStatusEvent.Status.SUCCESSFUL);var connection=backend();var target=registered("survival");
+        when(proxy.getAllServers()).thenReturn(List.of(connection.getServer(),target));when(proxy.getServer("survival")).thenReturn(Optional.of(target));
+        var api=new NavigatorBridgeTest.Api();api.waiting=player.getUniqueId();
+        var manager=mock(com.velocitypowered.api.plugin.PluginManager.class);var container=mock(com.velocitypowered.api.plugin.PluginContainer.class);
+        when(proxy.getPluginManager()).thenReturn(manager);when(manager.getPlugin("servernavigator")).thenReturn(Optional.of(container));when(container.getInstance()).thenReturn(Optional.of(api));
+        catalog(connection);UUID nonce=UUID.randomUUID();
+        var hello=mock(PluginMessageEvent.class);when(hello.getIdentifier()).thenReturn(MinecraftChannelIdentifier.from(Wire.CHANNEL));when(hello.getSource()).thenReturn(connection);when(hello.getData()).thenReturn(Wire.encode(Wire.Type.HELLO,nonce));plugin.pluginMessage(hello);
+        var click=mock(PluginMessageEvent.class);when(click.getIdentifier()).thenReturn(MinecraftChannelIdentifier.from(Wire.CHANNEL));when(click.getSource()).thenReturn(connection);when(click.getData()).thenReturn(Wire.encode(Wire.Type.CONNECT,nonce,"survival"));plugin.pluginMessage(click);
+        assertSame(player,api.requested);assertEquals("survival",api.target);verify(player,never()).createConnectionRequest(any());
+        var bytes=ArgumentCaptor.forClass(byte[].class);verify(connection,atLeastOnce()).sendPluginMessage(any(),bytes.capture());
+        var packet=Wire.decode(bytes.getAllValues().getLast());var snapshot=de.serverhub.common.MenuSnapshot.decode(packet.values());
+        assertTrue(snapshot.options().flag("runtime.waiting"));assertEquals(de.serverhub.common.MenuSnapshot.Status.STARTING,snapshot.entries().getLast().status());
     }
 }

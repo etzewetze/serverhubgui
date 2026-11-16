@@ -20,6 +20,10 @@ import java.io.File;
 import java.util.*;
 
 public final class ServerHubPaper extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+    public void sleepPing(com.destroystokyo.paper.event.server.PaperServerListPingEvent event){
+        event.setVersion(SleepSignal.version(event.getVersion(),getServer().isPaused()));
+    }
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.builder().character('&').hexColors().build();
     private final Map<UUID, Session> sessions = new HashMap<>();
     private Settings settings;
@@ -27,6 +31,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     private NamespacedKey iconKey;
     private long ticks;
     private boolean proxyExpected;
+    private LocalPackDelivery localDelivery;
     private static final class Session {
         final UUID nonce = UUID.randomUUID();
         final long joined = System.currentTimeMillis();
@@ -34,6 +39,10 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         List<String> catalog = List.of();
         UUID menuToken,revision;
         Settings central;
+        PackGate localGate;
+        PackData localPack;
+        FontBook localFonts;
+        LocalPackDelivery.State localState;
         long lastOpen, lastSwitch;
     }
     @Override public void onEnable() {
@@ -45,7 +54,8 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             proxyExpected=NetworkMode.proxied(java.nio.file.Path.of("."),bootstrap.getString("network.mode","auto"));
             settings=Settings.fromNetwork(new MenuSnapshot(UUID.randomUUID(),MenuOptions.defaults(),List.of()));
             gui=new GuiText();
-            getLogger().info(proxyExpected?"Netzwerkmodus: Menüeinstellungen werden automatisch vom Proxy übernommen.":"Eigenständiger Server erkannt: kein Netzwerkmenü und kein Proxy-Timeout.");
+            if(!proxyExpected)try(var input=getResource("serverhub-pack.zip")){if(input==null)throw new java.io.IOException("Paket fehlt");localDelivery=new LocalPackDelivery(getDataFolder().toPath(),input.readAllBytes());}
+            getLogger().info(proxyExpected?"Netzwerkmodus: Menüeinstellungen werden automatisch vom Proxy übernommen.":"Eigenständiger Server: lokale servers.yml und pack/ aktiv; kein Proxy-Timeout.");
         }
         catch (Exception e) { getLogger().severe("ServerHub kann nicht starten: " + e.getMessage()); getServer().getPluginManager().disablePlugin(this); return; }
         iconKey = new NamespacedKey(this, "hotbar-menu");
@@ -62,16 +72,39 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     }
     @Override public void onDisable() {
         for (Player p : Bukkit.getOnlinePlayers()) { Session s=sessions.get(p.getUniqueId()); if(s!=null&&s.menuToken!=null)p.closeDialog(); removeIcons(p); }
-        sessions.clear();
+        sessions.clear();if(localDelivery!=null)localDelivery.close();
     }
     private Component text(String text) { return LEGACY.deserialize(text).decoration(TextDecoration.ITALIC,false); }
     private Component message(String key) { return text(settings.yaml().getString("messages."+key, "&cServerHub: "+key)); }
     private Settings effective(Player p){Session s=sessions.get(p.getUniqueId());return s!=null&&s.central!=null?s.central:settings;}
     private Component message(Player p,String key){String fallback=MenuOptions.defaults().text("messages."+key);return text(effective(p).yaml().getString("messages."+key,fallback==null?"&cServerHub: "+key:fallback));}
     private void startSession(Player p) {
-        sessions.put(p.getUniqueId(),new Session()); applyIcon(p);
+        Session session=new Session();sessions.put(p.getUniqueId(),session);
+        if(!proxyExpected){session.acknowledged=true;session.localState=localDelivery.state();session.localPack=session.localState.pack();try{session.localFonts=session.localPack.fonts();session.central=localSettings(session);}catch(java.io.IOException e){p.kick(text("&cLokale Paketdaten ungültig."));return;}session.localGate=new PackGate(session.localPack.id());
+            Bukkit.getScheduler().runTaskLater(this,()->offerLocal(p,session),10);}
+        applyIcon(p);
         Bukkit.getScheduler().runTaskLater(this, () -> hello(p),10);
     }
+    private Settings localSettings(Session session){
+        var menu=localDelivery.state().menu();
+        var entries=menu.servers().stream().filter(server->!server.hidden()&&server.entry().target().equals("local")).map(server->{var e=server.entry();return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),MenuSnapshot.Status.ONLINE,e.family());}).toList();
+        return Settings.fromNetwork(new MenuSnapshot(menu.revision(),menu.options(),entries,session.localFonts));
+    }
+    private void offerLocal(Player player,Session session){
+        if(!player.isOnline()||sessions.get(player.getUniqueId())!=session)return;
+        var state=session.localState;
+        try{var address=player.getVirtualHost();String host=address==null?null:address.getHostString();
+            String url=localDelivery.url(state,host);
+            player.addResourcePack(session.localPack.id(),url,HexFormat.of().parseHex(session.localPack.sha1()),"Dieses Menü benötigt das ServerHub-Paket.",true);
+            Bukkit.getScheduler().runTaskLater(this,()->{if(player.isOnline()&&sessions.get(player.getUniqueId())==session&&!session.ready)player.kick(message(player,"loading"));},state.timeout()*20L);
+        }catch(IllegalArgumentException e){getLogger().warning("Lokale Paketadresse ungültig: "+e.getMessage());player.kick(message(player,"loading"));}
+    }
+    @EventHandler public void localPackStatus(PlayerResourcePackStatusEvent event){
+        if(proxyExpected)return;Player player=event.getPlayer();Session session=sessions.get(player.getUniqueId());
+        if(session==null||session.localGate==null||!session.localGate.accept(event.getID(),event.getStatus().name()))return;
+        session.ready=session.localGate.ready();if(!session.ready)player.kick(message(player,"loading"));else applyIcon(player);
+    }
+    private void retainLocal(){if(localDelivery!=null)localDelivery.retain(sessions.values().stream().filter(s->s.localPack!=null).map(s->s.localPack.sha1()).collect(java.util.stream.Collectors.toSet()));}
     private void hello(Player p) {
         Session s = sessions.get(p.getUniqueId());
         if (proxyExpected && s != null && p.isOnline()) p.sendPluginMessage(this,Wire.CHANNEL,Wire.encode(Wire.Type.HELLO,s.nonce));
@@ -97,20 +130,19 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             } else if (packet.type() == Wire.Type.CATALOG) {
                 s.catalog = packet.values(); s.discovered = true;
             } else if (packet.type() == Wire.Type.RESULT) {
-                String key = switch(packet.value(0)) { case "already" -> "already-connected"; case "denied" -> "denied"; case "loading" -> "loading"; default -> "unavailable"; };
+                String key = switch(packet.value(0)) { case "already" -> "already-connected"; case "denied" -> "denied"; case "loading" -> "loading";case "navigator" -> "navigator-unavailable"; default -> "unavailable"; };
                 p.sendMessage(message(p,key));
             }
         } catch (Exception ignored) { /* Untrusted or out-of-date message. */ }
     }
     private void tick() {
-        if(!proxyExpected)return;
         ticks++;
         for (Player p : Bukkit.getOnlinePlayers()) {
             Session s = sessions.get(p.getUniqueId()); if (s == null) continue;
             Settings config=effective(p);
-            if ((!s.acknowledged||s.central==null) && System.currentTimeMillis()-s.joined > config.handshakeTimeout()*1000L) { p.kick(message(p,"proxy-missing")); continue; }
-            if (ticks % 5 == 0 || !s.acknowledged) hello(p);
-            if (ready(p) && p.hasPermission("serverhub.use") && config.hint() && ticks % config.hintInterval() == 0
+            if (proxyExpected && (!s.acknowledged||s.central==null) && System.currentTimeMillis()-s.joined > config.handshakeTimeout()*1000L) { p.kick(message(p,"proxy-missing")); continue; }
+            if (proxyExpected && (ticks % 5 == 0 || !s.acknowledged)) hello(p);
+            if (ready(p) && p.hasPermission("serverhub.use") && config.hint() && !config.menuOptions().flag("runtime.waiting") && ticks % config.hintInterval() == 0
                 && p.getOpenInventory().getType() == InventoryType.CRAFTING) {
                 p.sendActionBar(gui.hint(config.yaml().getInt("shift-f-hint.x-offset",106),
                     config.yaml().getInt("shift-f-hint.y-offset",0)));
@@ -118,10 +150,9 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         }
     }
     private boolean ready(Player p) {
-        Session s = sessions.get(p.getUniqueId()); return proxyExpected && s != null && s.ready && s.central!=null;
+        Session s = sessions.get(p.getUniqueId()); return s != null && s.ready && s.central!=null;
     }
     private void open(Player p,int requested) {
-        if(!proxyExpected){p.sendMessage(text("&eDieser Server ist eigenständig. Die Netzwerk-Serverauswahl benötigt einen Velocity-Proxy."));return;}
         if(!p.hasPermission("serverhub.use")){p.sendMessage(message(p,"no-permission"));return;}
         Session s=sessions.get(p.getUniqueId());
         if(s==null||s.central==null){hello(p);p.sendMessage(message(p,"discovering"));return;}
@@ -132,7 +163,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         UUID token=UUID.randomUUID();s.menuToken=token;
         // Never place this dialog over a container: closing returns directly to the game.
         p.closeInventory();
-        DialogMenu.show(p,gui,config,entries,page,action->Bukkit.getScheduler().runTask(this,()->{
+        DialogMenu.show(p,gui.forSettings(config),config,entries,page,action->Bukkit.getScheduler().runTask(this,()->{
             if(!p.isOnline()||p.isDead()||sessions.get(p.getUniqueId())!=s||!token.equals(s.menuToken))return;
             if(!ready(p)||!p.hasPermission("serverhub.use")){s.menuToken=null;p.closeDialog();return;}
             s.menuToken=null;action.run();
@@ -145,6 +176,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         }
         long now=System.currentTimeMillis();if(now-s.lastSwitch<700)return;s.lastSwitch=now;
         p.closeDialog();
+        if(!proxyExpected){p.sendMessage(message(p,"already-connected"));return;}
         p.sendPluginMessage(this,Wire.CHANNEL,Wire.encode(Wire.Type.CONNECT,s.nonce,entry.target()));
     }
     private boolean isIcon(ItemStack item) {
@@ -171,12 +203,12 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         item.setItemMeta(meta); inv.setItem(slot,item);
     }
     @EventHandler public void join(PlayerJoinEvent e){startSession(e.getPlayer());}
-    @EventHandler public void quit(PlayerQuitEvent e){removeIcons(e.getPlayer());sessions.remove(e.getPlayer().getUniqueId());}
+    @EventHandler public void quit(PlayerQuitEvent e){removeIcons(e.getPlayer());sessions.remove(e.getPlayer().getUniqueId());retainLocal();}
     @EventHandler public void respawn(PlayerRespawnEvent e){Bukkit.getScheduler().runTaskLater(this,()->applyIcon(e.getPlayer()),1);}
     @EventHandler public void death(PlayerDeathEvent e){e.getDrops().removeIf(this::isIcon);}
     @EventHandler(ignoreCancelled=true) public void swap(PlayerSwapHandItemsEvent e){
         Player p=e.getPlayer();
-        if(proxyExpected&&p.isSneaking()) {
+        if(p.isSneaking()) {
             e.setCancelled(true); Session s=sessions.get(p.getUniqueId()); long now=System.currentTimeMillis();
             if(s!=null&&now-s.lastOpen>200){s.lastOpen=now;Bukkit.getScheduler().runTask(this,()->open(p,0));}
         } else if(isIcon(e.getMainHandItem())||isIcon(e.getOffHandItem())) e.setCancelled(true);
@@ -199,8 +231,8 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] args){
         if(args.length==1&&args[0].equalsIgnoreCase("reload")) {
             if(!sender.hasPermission("serverhub.reload")){sender.sendMessage(message("no-permission"));return true;}
-            sender.sendMessage(text(proxyExpected?"&eNetzwerkmodus: servers.yml am Proxy bearbeiten und dort /serverhubproxy reload ausführen. Änderungen werden automatisch verteilt."
-                :"&eEigenständiger Server: Für die Netzwerk-Serverauswahl ist ein Velocity-Proxy erforderlich."));
+            if(proxyExpected)sender.sendMessage(text("&eNetzwerkmodus: servers.yml und pack/ am Proxy bearbeiten und dort /serverhubproxy reload ausführen."));
+            else Bukkit.getScheduler().runTaskAsynchronously(this,()->{try{localDelivery.reload();Bukkit.getScheduler().runTask(this,()->{for(Player p:Bukkit.getOnlinePlayers()){Session session=sessions.get(p.getUniqueId());if(session!=null){session.central=localSettings(session);session.menuToken=null;applyIcon(p);}}retainLocal();sender.sendMessage(text("&aLokale Einstellungen und pack/ neu geladen. Nach Paketänderungen neu verbinden."));});}catch(Exception e){sender.sendMessage(text("&cReload abgelehnt: "+e.getMessage()));}});
             return true;
         }
         if(args.length!=0)return false;

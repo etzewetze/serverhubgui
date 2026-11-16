@@ -1,30 +1,90 @@
 {
   "providers": [
     {
+      "type": "space",
+      "advances": {
+        "": -1
+      }
+    },
+    {
       "type": "bitmap",
-      "file": "serverhub:gui/scroll.png",
+      "file": "serverhub:gui/scroll_left.png",
       "height": 30,
-      "ascent": 21,
+      "ascent": 18,
       "chars": [
-        ""
+        ""
       ]
     },
     {
       "type": "bitmap",
-      "file": "serverhub:gui/button.png",
-      "height": 20,
-      "ascent": 13,
+      "file": "serverhub:gui/scroll_mid.png",
+      "height": 30,
+      "ascent": 18,
       "chars": [
-        ""
+        ""
       ]
     },
     {
       "type": "bitmap",
-      "file": "serverhub:gui/info.png",
+      "file": "serverhub:gui/scroll_right.png",
+      "height": 30,
+      "ascent": 18,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "serverhub:gui/button_left.png",
       "height": 20,
       "ascent": 13,
       "chars": [
-        ""
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "serverhub:gui/button_mid.png",
+      "height": 20,
+      "ascent": 13,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "serverhub:gui/button_right.png",
+      "height": 20,
+      "ascent": 13,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "serverhub:gui/info_left.png",
+      "height": 20,
+      "ascent": 13,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "serverhub:gui/info_mid.png",
+      "height": 20,
+      "ascent": 13,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "serverhub:gui/info_right.png",
+      "height": 20,
+      "ascent": 13,
+      "chars": [
+        ""
       ]
     }
   ]
