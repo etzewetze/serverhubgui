@@ -52,4 +52,11 @@ class PackWorkspaceTest {
             assertNotEquals(original.pack().sha1(),next.pack().sha1());assertEquals("https://example.org/pack.zip",local.url(original,null));
         }
     }
+    @Test void automaticDeliverySwitchesOnlyEditedPacksToTheBuiltInHost()throws Exception {
+        byte[] stock=stock();Files.writeString(directory.resolve("config.properties"),"pack.mode=auto\n");PackWorkspace.prepare(directory,stock,MenuOptions.defaults());
+        var defaults=ProxySettings.read(directory);assertFalse(defaults.http());assertEquals(PackUrls.RELEASE_URL,defaults.url(null));
+        Files.writeString(directory.resolve("pack/modified.txt"),"Custom");PackWorkspace.prepare(directory,stock,MenuOptions.defaults());
+        var custom=ProxySettings.read(directory);assertTrue(custom.http());assertTrue(custom.url("play.example.org").contains(custom.pack().sha1()));
+        Files.writeString(directory.resolve("config.properties"),"pack.mode=github\n");assertThrows(java.io.IOException.class,()->ProxySettings.read(directory));
+    }
 }

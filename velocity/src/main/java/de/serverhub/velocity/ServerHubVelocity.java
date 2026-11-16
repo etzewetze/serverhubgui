@@ -176,7 +176,7 @@ public final class ServerHubVelocity {
     private void sendMenu(Player p){
         var state=menus.current();if(state==null)return;
         boolean integrate=state.options().flag("integration.servernavigator");
-        var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=statusMonitor.status(s,state);if(integrate)status=navigator.status(e.target(),status);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family());}).toList();
+        var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=statusMonitor.status(s,state);if(integrate&&s.override().equals("auto"))status=navigator.status(e.target(),status);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family());}).toList();
         var values=new LinkedHashMap<>(state.options().values());values.put("runtime.waiting",Boolean.toString(integrate&&navigator.waiting(p.getUniqueId())));
         Gate gate=gates.get(p.getUniqueId());FontBook fonts=gate==null?currentFonts:gate.fonts;
         try{send(p,Wire.Type.MENU,new MenuSnapshot(state.revision(),new MenuOptions(values),entries,fonts).encode());}

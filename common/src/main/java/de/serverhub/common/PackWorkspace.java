@@ -24,7 +24,7 @@ public final class PackWorkspace {
     public static PackData prepare(Path directory,byte[] bundled,MenuOptions settings)throws IOException {
         Files.createDirectories(directory);Path root=directory.resolve("pack");
         if(Files.isSymbolicLink(root))throw new IOException("pack/ darf kein symbolischer Link sein");
-        Map<String,byte[]> stock=unpack(bundled);Files.createDirectories(root);
+        Map<String,byte[]> stock=unpack(bundled);boolean fresh=!Files.exists(root);Files.createDirectories(root);
         // New assets are added on upgrade. Existing editable files are never overwritten.
         for(var entry:stock.entrySet()){
             Path file=safe(root,entry.getKey());if(!Files.exists(file)){Files.createDirectories(file.getParent());Files.write(file,entry.getValue(),StandardOpenOption.CREATE_NEW);}
@@ -35,7 +35,7 @@ public final class PackWorkspace {
             byte[] font=download(url);validateFont(font);Files.createDirectories(custom.getParent());atomic(custom,font);atomic(urlCache,url.getBytes(StandardCharsets.UTF_8));
         }
         Properties cache=new Properties();Path cacheFile=directory.resolve("pack-font-cache.properties");
-        if(Files.exists(cacheFile))try(var input=Files.newInputStream(cacheFile)){cache.load(input);}
+        if(!fresh&&Files.exists(cacheFile))try(var input=Files.newInputStream(cacheFile)){cache.load(input);}
         boolean cacheChanged=false;
         for(String family:FontBook.FAMILIES){
             Path source=safe(root,"assets/serverhub/fonts/"+family+".ttf");if(!Files.isRegularFile(source))continue;
@@ -100,7 +100,8 @@ public final class PackWorkspace {
             Path file=safe(root,"assets/serverhub/font/label_"+family+"_"+size+".json");if(!Files.exists(file))continue;
             if(Files.size(file)>65536)throw new IOException("Schriftdefinition zu groß");
             try{
-                Map<?,?> data=new Yaml(new SafeConstructor(loader)).load(Files.readString(file));
+                // JSON permits literal DEL inside strings; YAML's reader requires its escape.
+                Map<?,?> data=new Yaml(new SafeConstructor(loader)).load(Files.readString(file).replace("\u007F","\\u007f"));
                 List<?> providers=(List<?>)data.get("providers");Map<?,?> bitmap=providers.stream().filter(p->p instanceof Map<?,?> m&&"bitmap".equals(m.get("type"))).map(p->(Map<?,?>)p).findFirst().orElseThrow();
                 Map<?,?> spaces=providers.stream().filter(p->p instanceof Map<?,?> m&&"space".equals(m.get("type"))).map(p->(Map<?,?>)((Map<?,?>)p).get("advances")).findFirst().orElse(Map.of());
                 String[] texture=bitmap.get("file").toString().split(":",2);if(texture.length!=2||!texture[0].matches("[a-z0-9_.-]+"))throw new IOException("Ungültige Fonttextur");
@@ -152,5 +153,5 @@ public final class PackWorkspace {
     private static void atomic(Path path,byte[] bytes)throws IOException {if(Files.exists(path)&&Arrays.equals(Files.readAllBytes(path),bytes))return;Path temp=Files.createTempFile(path.getParent(),"pack-",".tmp");try{Files.write(temp,bytes);try{Files.move(temp,path,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}catch(AtomicMoveNotSupportedException e){Files.move(temp,path,StandardCopyOption.REPLACE_EXISTING);}}finally{Files.deleteIfExists(temp);}}
     private static byte[] properties(Properties p)throws IOException {var out=new StringBuilder();for(String key:new TreeSet<>(p.stringPropertyNames()))out.append(key).append('=').append(p.getProperty(key)).append('\n');return out.toString().getBytes(StandardCharsets.ISO_8859_1);}
     private static String sha256(byte[] bytes){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));}catch(NoSuchAlgorithmException e){throw new IllegalStateException(e);}}
-    private static String json(Object value){if(value instanceof Map<?,?> map){var list=new ArrayList<String>();map.forEach((k,v)->list.add(json(k.toString())+":"+json(v)));return "{"+String.join(",",list)+"}";}if(value instanceof List<?> l)return "["+String.join(",",l.stream().map(PackWorkspace::json).toList())+"]";if(value instanceof Number||value instanceof Boolean)return value.toString();var out=new StringBuilder("\"");for(char c:value.toString().toCharArray()){if(c=='"'||c=='\\')out.append('\\').append(c);else if(c<32)out.append(String.format("\\u%04x",(int)c));else out.append(c);}return out.append('"').toString();}
+    private static String json(Object value){if(value instanceof Map<?,?> map){var list=new ArrayList<String>();map.forEach((k,v)->list.add(json(k.toString())+":"+json(v)));return "{"+String.join(",",list)+"}";}if(value instanceof List<?> l)return "["+String.join(",",l.stream().map(PackWorkspace::json).toList())+"]";if(value instanceof Number||value instanceof Boolean)return value.toString();var out=new StringBuilder("\"");for(char c:value.toString().toCharArray()){if(c=='"'||c=='\\')out.append('\\').append(c);else if(c<32||c==127)out.append(String.format("\\u%04x",(int)c));else out.append(c);}return out.append('"').toString();}
 }

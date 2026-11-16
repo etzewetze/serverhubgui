@@ -13,7 +13,7 @@ class CentralMenuConfigTest {
         var config=new CentralMenuConfig(directory);config.load(List.of("lobby","survival"));
         Path file=directory.resolve("servers.yml");String text=Files.readString(file);
         assertTrue(text.contains("lobby:"));assertTrue(text.contains("survival:"));
-        text=text.replace("name: Lobby","name: Treffpunkt").replaceFirst("(?m)^    color: '#FFF4D6'","    color: '#12AB34'");Files.writeString(file,text);
+        text=text.replace("name: Lobby\n    color: '#FFF4D6'","name: Treffpunkt\n    color: '#12AB34'");Files.writeString(file,text);
         assertTrue(config.discover(List.of("lobby","survival","event")));
         var lobby=config.current().servers().stream().filter(s->s.entry().target().equals("lobby")).findFirst().orElseThrow();
         assertEquals("Treffpunkt",lobby.entry().name());assertEquals("#12AB34",lobby.entry().color());
