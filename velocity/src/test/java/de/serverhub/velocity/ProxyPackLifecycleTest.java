@@ -124,23 +124,25 @@ class ProxyPackLifecycleTest {
     ServerConnection backend(){
         var server=registered("lobby");var connection=mock(ServerConnection.class);
         when(connection.getPlayer()).thenReturn(player);when(connection.getServer()).thenReturn(server);
-        when(connection.getServerInfo()).thenReturn(server.getServerInfo());when(player.getCurrentServer()).thenReturn(Optional.of(connection));
+        var info=server.getServerInfo();when(connection.getServerInfo()).thenReturn(info);when(player.getCurrentServer()).thenReturn(Optional.of(connection));
         return connection;
     }
     @Test void discoversRegisteredServersSortsThemAndHidesProxyPermissionDenials()throws Exception{
         setup("");connect();var connection=backend();
-        when(proxy.getAllServers()).thenReturn(List.of(registered("survival"),registered("admin"),registered("lobby")));
+        var servers=List.of(registered("survival"),registered("admin"),registered("lobby"));
+        when(proxy.getAllServers()).thenReturn(servers);
         when(player.getPermissionValue("serverhub.connect.admin")).thenReturn(com.velocitypowered.api.permission.Tristate.FALSE);
         assertEquals(List.of("lobby","survival"),catalog(connection));
         verify(player,times(1)).sendResourcePackOffer(any());
     }
     @Test void detectsAddedAndRemovedServersWithoutAnotherPackOffer()throws Exception{
         setup("");connect();var connection=backend();
-        when(proxy.getAllServers()).thenReturn(List.of(registered("lobby")));
+        var lobby=registered("lobby");var event=registered("event");
+        when(proxy.getAllServers()).thenReturn(List.of(lobby));
         assertEquals(List.of("lobby"),catalog(connection));
-        when(proxy.getAllServers()).thenReturn(List.of(registered("event"),registered("lobby")));
+        when(proxy.getAllServers()).thenReturn(List.of(event,lobby));
         assertEquals(List.of("event","lobby"),catalog(connection));
-        when(proxy.getAllServers()).thenReturn(List.of(registered("event")));
+        when(proxy.getAllServers()).thenReturn(List.of(event));
         assertEquals(List.of("event"),catalog(connection));
         verify(player,times(1)).sendResourcePackOffer(any());
     }
