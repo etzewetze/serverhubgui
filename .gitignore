@@ -1,0 +1,7 @@
+**/target/
+*.log
+.idea/
+.vscode/
+/resource-pack-output/
+/dist/
+**/__pycache__/
