@@ -181,8 +181,9 @@ public final class ServerHubVelocity {
             try{
                 var registered=proxy.getAllServers();
                 refreshRegistered();
-                if(menus.current().options().flag("status.enabled"))statusMonitor.refresh(registered,menus.current());
             }catch(IOException e){logger.warn("Neue Server konnten nicht in servers.yml ergänzt werden: {}",e.getMessage());}
+            var menu=menus.current();
+            if(menu.options().flag("status.enabled"))statusMonitor.refresh(proxy.getAllServers(),menu);
         }).delay(Duration.ofSeconds(1)).repeat(Duration.ofSeconds(menus.current().options().number("status.ping-interval-seconds"))).schedule();
     }
     void refreshRegistered()throws IOException {

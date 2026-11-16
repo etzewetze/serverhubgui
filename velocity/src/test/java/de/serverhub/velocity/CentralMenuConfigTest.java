@@ -33,4 +33,9 @@ class CentralMenuConfigTest {
         assertEquals("sleeping",state.servers().getFirst().override());assertEquals(10,state.servers().getFirst().entry().size());
         assertEquals(2,state.options().columns());assertFalse(state.options().pageInfo(100));
     }
+    @Test void theMaximumDiscoveredListCanBeSavedAndLoadedAgain()throws Exception{
+        var names=java.util.stream.IntStream.range(0,256).mapToObj(i->"server-"+i).toList();
+        var config=new CentralMenuConfig(directory);config.load(names);
+        assertEquals(256,config.load(names).servers().size());
+    }
 }

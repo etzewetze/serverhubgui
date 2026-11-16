@@ -14,7 +14,8 @@ final class ServerStatusMonitor {
     private volatile UUID revision;
     void configure(CentralMenuConfig.State config){revision=config.revision();states.clear();}
     void refresh(Collection<RegisteredServer> servers,CentralMenuConfig.State config){
-        UUID expected=revision;
+        UUID expected=config.revision();
+        if(!Objects.equals(revision,expected))return;
         Set<String> active=new HashSet<>();
         for(var server:servers){
             String name=server.getServerInfo().getName().toLowerCase(Locale.ROOT);active.add(name);
@@ -25,7 +26,7 @@ final class ServerStatusMonitor {
                     pending.remove(name);
                     if(Objects.equals(revision,expected))states.put(name,new Observation(classify(ping,error,settings),System.currentTimeMillis()));
                 });
-            }catch(RuntimeException e){pending.remove(name);states.put(name,new Observation(classify(null,e,settings),System.currentTimeMillis()));}
+            }catch(RuntimeException e){pending.remove(name);if(Objects.equals(revision,expected))states.put(name,new Observation(classify(null,e,settings),System.currentTimeMillis()));}
         }
         states.keySet().retainAll(active);
     }
