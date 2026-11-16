@@ -2,65 +2,20 @@
   "providers": [
     {
       "type": "bitmap",
-      "file": "serverhub:gui/menu_0.png",
-      "height": 222,
-      "ascent": 13,
+      "file": "serverhub:gui/scroll.png",
+      "height": 30,
+      "ascent": 21,
       "chars": [
         ""
       ]
     },
     {
       "type": "bitmap",
-      "file": "serverhub:gui/menu_1.png",
-      "height": 222,
+      "file": "serverhub:gui/button.png",
+      "height": 20,
       "ascent": 13,
       "chars": [
         ""
-      ]
-    },
-    {
-      "type": "bitmap",
-      "file": "serverhub:gui/menu_2.png",
-      "height": 222,
-      "ascent": 13,
-      "chars": [
-        ""
-      ]
-    },
-    {
-      "type": "bitmap",
-      "file": "serverhub:gui/menu_3.png",
-      "height": 222,
-      "ascent": 13,
-      "chars": [
-        ""
-      ]
-    },
-    {
-      "type": "bitmap",
-      "file": "serverhub:gui/menu_4.png",
-      "height": 222,
-      "ascent": 13,
-      "chars": [
-        ""
-      ]
-    },
-    {
-      "type": "bitmap",
-      "file": "serverhub:gui/menu_5.png",
-      "height": 222,
-      "ascent": 13,
-      "chars": [
-        ""
-      ]
-    },
-    {
-      "type": "bitmap",
-      "file": "serverhub:gui/menu_6.png",
-      "height": 222,
-      "ascent": 13,
-      "chars": [
-        ""
       ]
     }
   ]

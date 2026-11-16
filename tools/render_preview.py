@@ -1,38 +1,41 @@
 #!/usr/bin/env python3
-"""Render an exact atlas-based design preview, not an in-game screenshot."""
+"""Artwork/layout reference for the native dialog; not a running-client screenshot."""
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
-import yaml
+from PIL import Image, ImageDraw
 
 ROOT=Path(__file__).resolve().parents[1]
-A=ROOT/"resource-pack/assets/serverhub"
+A=ROOT/'resource-pack/assets/serverhub'
+CODES=list(range(32,128))+list(range(160,256))
 
 def main():
-    settings=yaml.safe_load((ROOT/"paper/src/main/resources/config.yml").read_text())
-    entries=list(settings["servers"].values())[:6]
-    panel=Image.open(A/f"textures/gui/menu_{len(entries)}.png").convert("RGBA")
-    widths=dict(line.split("=")for line in (ROOT/"paper/src/main/resources/font-widths.properties").read_text().splitlines())
-    codes=list(range(32,128))+list(range(160,256));positions={c:i for i,c in enumerate(codes)}
-    atlases={size:Image.open(A/f"textures/gui/latin_{size}.png").convert("RGBA")for size in (8,10,12)}
-    def width(text,size):return sum(int(widths[f"{size}.{ord(c)}"])for c in text)
-    def label(text,size,top,center,max_width,color):
-        if width(text,size)>max_width:
-            while text and width(text+"..",size)>max_width:text=text[:-1]
-            text+=".."
-        x=center-width(text,size)//2
+    widths=dict(line.split('=')for line in (ROOT/'paper/src/main/resources/font-widths.properties').read_text().splitlines())
+    atlases={s:Image.open(A/f'textures/gui/latin_{s}.png').convert('RGBA')for s in (8,10,12)}
+    positions={c:i for i,c in enumerate(CODES)}
+    def label(canvas,text,size,center,baseline,color):
+        width=sum(int(widths[f'{size}.{ord(c)}'])for c in text)
+        x=center-width//2
         for char in text:
             i=positions[ord(char)]
-            if char!=" ":
+            if char!=' ':
                 glyph=atlases[size].crop((i%16*16,i//16*16,i%16*16+16,i//16*16+16))
-                tint=Image.new("RGBA",glyph.size,color);tint.putalpha(glyph.getchannel("A"));panel.alpha_composite(tint,(x,top))
-            x+=int(widths[f"{size}.{ord(char)}"])
-    label(settings["menu"]["title"],10,2,88,152,settings["menu"]["title-color"])
-    for i,e in enumerate(entries):label(e["name"],e.get("font-size",settings["menu"]["font-size"]),22+i//2*34,44+i%2*88,60,e["color"])
-    label("Seite 1 / 1",8,122,132,64,"#5A4D3A")
-    label("Inventar",8,124,27,55,"#404040")
-    for i,text in enumerate(("Zurück","Schließen","Weiter")):label(text,8,108,34+i*54,40,"#FFF4D6"if i==1 else"#C5B6A0")
-    output=ROOT/"preview";output.mkdir(exist_ok=True)
-    panel.resize((704,888),Image.Resampling.NEAREST).save(output/"Menue-Vorschau.png")
-    print(output/"Menue-Vorschau.png")
+                ink=Image.new('RGBA',glyph.size,color);ink.putalpha(glyph.getchannel('A'));canvas.alpha_composite(ink,(x,baseline-4))
+            x+=int(widths[f'{size}.{ord(char)}'])
+    canvas=Image.new('RGBA',(360,252),'#20242A');draw=ImageDraw.Draw(canvas)
+    scroll=Image.open(A/'textures/gui/scroll.png').convert('RGBA')
+    button=Image.open(A/'textures/gui/button.png').convert('RGBA')
+    canvas.alpha_composite(scroll,(70,20));label(canvas,'Serverauswahl',12,180,34,'#3D2817')
+    label(canvas,'Seite 1 / 1',8,180,67,'#C6C6C6')
+    for i,(text,color)in enumerate([('Lobby','#A8E091'),('Survival','#F2C06D'),('Creative','#9FDCF0'),('Event','#FFF4D6'),('Kalle','#F0A79A')]):
+        x=36+(i%2)*148;y=84+(i//2)*24
+        canvas.alpha_composite(button,(x,y));label(canvas,text,12,x+70,y+6,color)
+    canvas.alpha_composite(button,(110,166));label(canvas,'Schließen',10,180,172,'#FFF4D6')
+    # A schematic hotbar solely to document the intended HUD anchoring.
+    for col in range(9):
+        x=89+col*20
+        draw.rectangle((x,223,x+19,244),fill='#4E4E4E',outline='#AAA7A0')
+    badge=Image.open(A/'textures/item/menu_icon.png').convert('RGBA');canvas.alpha_composite(badge,(286,215))
+    output=ROOT/'preview';output.mkdir(exist_ok=True)
+    canvas.resize((1080,756),Image.Resampling.NEAREST).save(output/'Menue-Vorschau.png')
+    print('Designreferenz, kein Ingame-Screenshot:',output/'Menue-Vorschau.png')
 
-if __name__=="__main__":main()
+if __name__=='__main__':main()

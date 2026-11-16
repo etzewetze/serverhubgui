@@ -55,6 +55,10 @@ public final class ServerHubVelocity {
                 if(ProxyConfigFiles.migrate(directory,defaults.readAllBytes()))logger.info("Alte 2.0-Konfiguration gesichert; Paket wird jetzt über den GitHub-Release geladen.");
             }
             copyDefault("serverhub-pack.zip");
+            try(var bundled=getClass().getResourceAsStream("/serverhub-pack.zip")){
+                if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
+                if(BundledPackFiles.upgrade(directory,bundled.readAllBytes()))logger.info("Unverändertes 2.1-Paket gesichert und für das neue Dialogmenü aktualisiert.");
+            }
             reload();
         }catch(Exception e){logger.error("ServerHub-Konfiguration fehlerhaft. Neue Spieler werden abgewiesen: {}",e.getMessage());}
     }
@@ -138,7 +142,7 @@ public final class ServerHubVelocity {
             Wire.Packet packet=Wire.decode(event.getData());
             if(packet.type()==Wire.Type.HELLO){
                 links.put(p.getUniqueId(),new Link(backend.getServerInfo().getName(),packet.nonce()));
-                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);return;
+                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);sendCatalog(p);return;
             }
             Link link=links.get(p.getUniqueId());
             if(link==null||!link.nonce().equals(packet.nonce())||!link.server().equals(backend.getServerInfo().getName()))return;
@@ -149,10 +153,17 @@ public final class ServerHubVelocity {
         Gate gate=gates.get(p.getUniqueId());
         send(p,Wire.Type.STATE,Boolean.toString(gate!=null&&gate.state.ready()));
     }
-    private void send(Player p,Wire.Type type,String value){
+    private void sendCatalog(Player p){
+        String[] servers=proxy.getAllServers().stream().map(s->s.getServerInfo().getName())
+            .filter(Wire::validTarget)
+            .filter(name->p.getPermissionValue("serverhub.connect."+name)!=Tristate.FALSE)
+            .distinct().sorted(String.CASE_INSENSITIVE_ORDER).limit(Wire.MAX_SERVERS).toArray(String[]::new);
+        send(p,Wire.Type.CATALOG,servers);
+    }
+    private void send(Player p,Wire.Type type,String... values){
         Link link=links.get(p.getUniqueId());if(link==null)return;
         p.getCurrentServer().filter(c->c.getServerInfo().getName().equals(link.server()))
-            .ifPresent(c->c.sendPluginMessage(CHANNEL,Wire.encode(type,link.nonce(),value)));
+            .ifPresent(c->c.sendPluginMessage(CHANNEL,Wire.encode(type,link.nonce(),values)));
     }
     private void connect(Player p,String target){
         Gate gate=gates.get(p.getUniqueId());

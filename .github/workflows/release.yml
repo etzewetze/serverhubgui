@@ -2,7 +2,7 @@ name: Build and release ServerHub
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
   workflow_dispatch:
 
@@ -60,7 +60,7 @@ jobs:
             "dist/PRUEFUNG.txt" \
             "dist/Menue-Vorschau.png" \
             --target "$GITHUB_SHA" \
-            --title "ServerHub $version – Universal-JAR und HTTPS-Paket" \
+            --title "ServerHub $version – Native Dialoge und automatische Serverliste" \
             --notes-file RELEASE-NOTES.md \
             --latest
       - name: Verify public release downloads
@@ -97,4 +97,3 @@ jobs:
               assert not any(n.startswith(('org/bukkit/', 'com/velocitypowered/api/')) for n in jar.namelist())
           print(f'Public release downloads verified; pack SHA-1 {digest}')
           PYVERIFY
-

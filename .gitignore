@@ -4,4 +4,5 @@
 .vscode/
 /resource-pack-output/
 /dist/
+/verified-release/
 **/__pycache__/

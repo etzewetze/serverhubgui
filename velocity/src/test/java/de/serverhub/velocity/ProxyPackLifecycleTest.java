@@ -31,6 +31,7 @@ class ProxyPackLifecycleTest {
         Files.writeString(directory.resolve("config.properties"),"pack.mode="+(url.isBlank()?"github":"external")+"\npack.external-url="+url+"\n");
         proxy=mock(ProxyServer.class);player=mock(Player.class);when(player.getUniqueId()).thenReturn(UUID.randomUUID());when(player.isActive()).thenReturn(true);
         when(proxy.getAllPlayers()).thenReturn(List.of());
+        when(proxy.getAllServers()).thenReturn(List.of());
         var scheduler=mock(Scheduler.class);when(proxy.getScheduler()).thenReturn(scheduler);
         task=mock(Scheduler.TaskBuilder.class,RETURNS_SELF);timeout=mock(ScheduledTask.class);when(task.schedule()).thenReturn(timeout);
         callback=ArgumentCaptor.forClass(Runnable.class);when(scheduler.buildTask(any(),callback.capture())).thenReturn(task);
@@ -101,9 +102,46 @@ class ProxyPackLifecycleTest {
             when(message.getIdentifier()).thenReturn(MinecraftChannelIdentifier.from(Wire.CHANNEL));
             when(message.getSource()).thenReturn(connection);when(message.getData()).thenReturn(Wire.encode(Wire.Type.HELLO,nonce));
             plugin.pluginMessage(message);
-            var bytes=ArgumentCaptor.forClass(byte[].class);verify(connection).sendPluginMessage(any(),bytes.capture());
-            var state=Wire.decode(bytes.getValue());assertEquals(nonce,state.nonce());assertEquals("true",state.value(0));
+            var bytes=ArgumentCaptor.forClass(byte[].class);verify(connection,times(2)).sendPluginMessage(any(),bytes.capture());
+            var state=Wire.decode(bytes.getAllValues().getFirst());assertEquals(nonce,state.nonce());assertEquals("true",state.value(0));
         }
+        verify(player,times(1)).sendResourcePackOffer(any());
+    }
+    RegisteredServer registered(String name){
+        var server=mock(RegisteredServer.class);
+        when(server.getServerInfo()).thenReturn(new ServerInfo(name,new InetSocketAddress("127.0.0.1",25565)));
+        return server;
+    }
+    List<String> catalog(ServerConnection connection)throws Exception{
+        UUID nonce=UUID.randomUUID();var message=mock(PluginMessageEvent.class);
+        when(message.getIdentifier()).thenReturn(MinecraftChannelIdentifier.from(Wire.CHANNEL));
+        when(message.getSource()).thenReturn(connection);when(message.getData()).thenReturn(Wire.encode(Wire.Type.HELLO,nonce));
+        clearInvocations(connection);plugin.pluginMessage(message);
+        var bytes=ArgumentCaptor.forClass(byte[].class);verify(connection,times(2)).sendPluginMessage(any(),bytes.capture());
+        var packet=Wire.decode(bytes.getAllValues().getLast());
+        assertEquals(nonce,packet.nonce());assertEquals(Wire.Type.CATALOG,packet.type());return packet.values();
+    }
+    ServerConnection backend(){
+        var server=registered("lobby");var connection=mock(ServerConnection.class);
+        when(connection.getPlayer()).thenReturn(player);when(connection.getServer()).thenReturn(server);
+        when(connection.getServerInfo()).thenReturn(server.getServerInfo());when(player.getCurrentServer()).thenReturn(Optional.of(connection));
+        return connection;
+    }
+    @Test void discoversRegisteredServersSortsThemAndHidesProxyPermissionDenials()throws Exception{
+        setup("");connect();var connection=backend();
+        when(proxy.getAllServers()).thenReturn(List.of(registered("survival"),registered("admin"),registered("lobby")));
+        when(player.getPermissionValue("serverhub.connect.admin")).thenReturn(com.velocitypowered.api.permission.Tristate.FALSE);
+        assertEquals(List.of("lobby","survival"),catalog(connection));
+        verify(player,times(1)).sendResourcePackOffer(any());
+    }
+    @Test void detectsAddedAndRemovedServersWithoutAnotherPackOffer()throws Exception{
+        setup("");connect();var connection=backend();
+        when(proxy.getAllServers()).thenReturn(List.of(registered("lobby")));
+        assertEquals(List.of("lobby"),catalog(connection));
+        when(proxy.getAllServers()).thenReturn(List.of(registered("event"),registered("lobby")));
+        assertEquals(List.of("event","lobby"),catalog(connection));
+        when(proxy.getAllServers()).thenReturn(List.of(registered("event")));
+        assertEquals(List.of("event"),catalog(connection));
         verify(player,times(1)).sendResourcePackOffer(any());
     }
 }

@@ -38,6 +38,8 @@ class UniversalJarIT {
         try(var archive=new JarFile(jar.toFile())){
             for(String required:List.of("plugin.yml","velocity-plugin.json","config.yml","config.properties","font-widths.properties","serverhub-pack.zip","de/serverhub/common/Wire.class"))assertNotNull(archive.getEntry(required),required);
             assertFalse(archive.stream().anyMatch(e->e.getName().startsWith("org/bukkit/")||e.getName().startsWith("com/velocitypowered/api/")));
+            assertNotNull(archive.getEntry("de/serverhub/paper/DialogMenu.class"));
+            assertNull(archive.getEntry("de/serverhub/paper/ServerHubPaper$Menu.class"));
             assertArrayEquals(java.nio.file.Files.readAllBytes(jar.getParent().getParent().getParent().resolve("resource-pack-output/serverhub-pack.zip")),archive.getInputStream(archive.getEntry("serverhub-pack.zip")).readAllBytes());
         }
     }

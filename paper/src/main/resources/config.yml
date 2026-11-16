@@ -1,24 +1,31 @@
 # Paper 26.3 / Java 25. Auf jedem Backend installieren.
 # Paketpflicht und Paket-Download werden zentral von ServerHub-Velocity verwaltet.
+interface-version: 2
+server-discovery:
+  # Alle bei Velocity registrierten Server automatisch übernehmen.
+  enabled: true
 menu:
   title: "SERVERAUSWAHL"
-  title-color: "#E8C78F"
+  title-color: "#3D2817"
   # Unterstützte echte Bitmap-Schriftgrößen: 8, 10, 12 Pixel.
-  font-size: 10
+  font-size: 12
   text-color: "#FFF4D6"
   previous: "Zurück"
   close: "Schließen"
   next: "Weiter"
 hotbar-icon:
-  enabled: true
+  # Optionaler zusätzlicher Gegenstand IN der Hotbar. Der HUD-Hinweis braucht ihn nicht.
+  enabled: false
   # 0 = ganz links; 8 = ganz rechts. Belegte Gegenstände werden sicher umgelagert.
   # Ist das Inventar voll, wird kein vorhandener Gegenstand überschrieben.
   slot: 8
 shift-f-hint:
   enabled: true
-  # Dezente Actionbar; im Vanilla-Client oberhalb der Hotbar zentriert.
-  interval-seconds: 5
-  text: "&#D9BF89Shift + F &8· &7Servermenü"
+  # Grafischer Shift/+/F-Hinweis rechts neben der Hotbar (Actionbar-Font).
+  interval-seconds: 1
+  # GUI-Pixel ab Bildschirmmitte; positive y-Werte verschieben nach unten.
+  x-offset: 106
+  y-offset: 0
 proxy:
   # Bei fehlendem Proxy-Modul bleibt das Custom-Menü gesperrt; danach Kick.
   handshake-timeout-seconds: 30
@@ -26,41 +33,24 @@ messages:
   no-permission: "&cDafür hast du keine Berechtigung."
   reloaded: "&aServerHub wurde neu geladen."
   reload-failed: "&cKonfiguration ungültig. Die bisherige Konfiguration bleibt aktiv. Details in der Konsole."
+  discovering: "&eDie Serverliste wird gerade vom Proxy geladen. Bitte gleich erneut öffnen."
   loading: "&eDas erforderliche Menüpaket wird noch geladen."
   proxy-missing: "&cDie Verbindung zum ServerHub-Proxy fehlt. Bitte informiere das Serverteam."
   full-inventory: "&eFür das Menü-Icon fehlt ein freier Inventarplatz. Shift + F funktioniert weiterhin."
   unavailable: "&cDieser Server ist gerade nicht erreichbar."
   already-connected: "&eDu bist bereits auf diesem Server."
   denied: "&cDer Proxy hat den Wechsel nicht erlaubt."
-# target muss dem tatsächlichen Namen in velocity.toml entsprechen, nicht nur
-# einem Befehlsalias eines anderen Plugins. Reihenfolge = Reihenfolge im Menü.
-# name: Klartext; color: Hex. permission: optional, wird auf Paper geprüft.
-# Optional font-size: 8/10/12 pro Eintrag; zu lange Namen werden gekürzt,
-# der vollständige Name und die Beschreibung bleiben im Tooltip erhalten.
-servers:
-  lobby:
-    name: "Lobby"
-    target: lobby
-    color: "#A8E091"
-    description: ["Treffpunkt für alle Spieler"]
-  survival:
-    name: "Survival"
-    target: survival
-    color: "#F2C06D"
-    description: ["Gemeinsam überleben und bauen"]
-  creative:
-    name: "Creative"
-    target: creative
-    color: "#9FDCF0"
-    description: ["Deinen Ideen freien Lauf lassen"]
-  test:
-    name: "Testserver"
-    target: test
-    color: "#D6AFF0"
-    permission: serverhub.test
-    description: ["Neue Funktionen ausprobieren"]
-  kalle:
-    name: "Kalle"
-    target: kalle
-    color: "#F0A79A"
-    description: ["Zu Kalles Server wechseln"]
+# Automatische Erkennung ist Standard. Hier sind nur optionale Anpassungen nötig.
+# target muss genau dem Namen in Velocity entsprechen. Nicht registrierte Ziele werden
+# im Automatikmodus ausgeblendet. hidden: true blendet ein Ziel aus.
+# Beispiel:
+# servers:
+#   lobby:
+#     name: 'Lobby'
+#     target: lobby
+#     color: '#A8E091'
+#     font-size: 12
+#     description: ['Treffpunkt für alle Spieler']
+#     permission: serverhub.lobby
+#     hidden: false
+servers: {}

@@ -29,19 +29,18 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     private static final class Session {
         final UUID nonce = UUID.randomUUID();
         final long joined = System.currentTimeMillis();
-        boolean acknowledged, ready, fullWarning;
+        boolean acknowledged, ready, fullWarning, discovered;
+        List<String> catalog = List.of();
+        UUID menuToken;
         long lastOpen, lastSwitch;
-    }
-    private static final class Menu implements InventoryHolder {
-        final int page;
-        final List<Settings.Entry> entries;
-        Inventory inventory;
-        Menu(int page, List<Settings.Entry> entries) { this.page=page; this.entries=entries; }
-        public Inventory getInventory() { return inventory; }
     }
     @Override public void onEnable() {
         saveDefaultConfig();
-        try { settings = Settings.read(new File(getDataFolder(), "config.yml")); gui = new GuiText(); }
+        try {
+            File config = new File(getDataFolder(), "config.yml");
+            if (PaperConfigFiles.upgrade(config)) getLogger().info("Menü auf native Dialoge, automatische Serverliste und HUD-Hinweis umgestellt; alte Konfiguration gesichert.");
+            settings = Settings.read(config); gui = new GuiText();
+        }
         catch (Exception e) { getLogger().severe("ServerHub kann nicht starten: " + e.getMessage()); getServer().getPluginManager().disablePlugin(this); return; }
         iconKey = new NamespacedKey(this, "hotbar-menu");
         Objects.requireNonNull(getCommand("extramenu")).setExecutor(this);
@@ -56,7 +55,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         getServer().getScheduler().runTaskTimer(this,this::tick,20,20);
     }
     @Override public void onDisable() {
-        for (Player p : Bukkit.getOnlinePlayers()) { if (p.getOpenInventory().getTopInventory().getHolder() instanceof Menu) p.closeInventory(); removeIcons(p); }
+        for (Player p : Bukkit.getOnlinePlayers()) { Session s=sessions.get(p.getUniqueId()); if(s!=null&&s.menuToken!=null)p.closeDialog(); removeIcons(p); }
         sessions.clear();
     }
     private Component text(String text) { return LEGACY.deserialize(text).decoration(TextDecoration.ITALIC,false); }
@@ -78,9 +77,11 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
                 boolean wasReady = s.ready;
                 s.acknowledged = true; s.ready = Boolean.parseBoolean(packet.value(0));
                 if (s.ready != wasReady) {
-                    if (!s.ready && p.getOpenInventory().getTopInventory().getHolder() instanceof Menu) p.closeInventory();
+                    if (!s.ready && s.menuToken!=null) { s.menuToken=null; p.closeDialog(); }
                     applyIcon(p);
                 }
+            } else if (packet.type() == Wire.Type.CATALOG) {
+                s.catalog = packet.values(); s.discovered = true;
             } else if (packet.type() == Wire.Type.RESULT) {
                 String key = switch(packet.value(0)) { case "already" -> "already-connected"; case "denied" -> "denied"; case "loading" -> "loading"; default -> "unavailable"; };
                 p.sendMessage(message(key));
@@ -95,9 +96,8 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             if (ticks % 5 == 0 || !s.acknowledged) hello(p);
             if (s.ready && p.hasPermission("serverhub.use") && settings.hint() && ticks % settings.hintInterval() == 0
                 && p.getOpenInventory().getType() == InventoryType.CRAFTING) {
-                p.sendActionBar(Component.text("\uE100 ").font(net.kyori.adventure.key.Key.key("serverhub:hint"))
-                    .append(text(settings.yaml().getString("shift-f-hint.text", "&7Shift + F"))
-                        .font(net.kyori.adventure.key.Key.key("minecraft:default"))));
+                p.sendActionBar(gui.hint(settings.yaml().getInt("shift-f-hint.x-offset",106),
+                    settings.yaml().getInt("shift-f-hint.y-offset",0)));
             }
         }
     }
@@ -107,36 +107,27 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     private void open(Player p,int requested) {
         if (!p.hasPermission("serverhub.use")) { p.sendMessage(message("no-permission")); return; }
         if (!ready(p)) { p.sendMessage(message("loading")); return; }
-        var entries = settings.entries().stream().filter(e -> e.permission().isBlank() || p.hasPermission(e.permission())).toList();
-        int page = MenuLayout.clampPage(requested,entries.size());
-        var visible = entries.subList(Math.min(page*6,entries.size()),Math.min(page*6+6,entries.size()));
-        Component title = gui.background(visible.size());
-        title = title.append(gui.label(settings.yaml().getString("menu.title","SERVERAUSWAHL"),10,"header",88,152,
-            Settings.color(settings.yaml().getString("menu.title-color","#E8C78F"))));
-        for (int i=0;i<visible.size();i++) {
-            var e=visible.get(i); title=title.append(gui.label(e.name(),e.size(),"r"+(i/2),44+(i%2)*88,60,e.color()));
+        Session s=sessions.get(p.getUniqueId());
+        if(settings.automatic()&&!s.discovered){hello(p);p.sendMessage(message("discovering"));return;}
+        var entries=settings.resolve(s.catalog).stream().filter(e->e.permission().isBlank()||p.hasPermission(e.permission())).toList();
+        int page=MenuLayout.clampPage(requested,entries.size());
+        UUID token=UUID.randomUUID();s.menuToken=token;
+        // Never place this dialog over a container: closing returns directly to the game.
+        p.closeInventory();
+        DialogMenu.show(p,gui,settings,entries,page,action->Bukkit.getScheduler().runTask(this,()->{
+            if(!p.isOnline()||p.isDead()||sessions.get(p.getUniqueId())!=s||!token.equals(s.menuToken))return;
+            if(!ready(p)||!p.hasPermission("serverhub.use")){s.menuToken=null;p.closeDialog();return;}
+            s.menuToken=null;action.run();
+        }),entry->choose(p,s,entry),next->open(p,next));
+    }
+    private void choose(Player p,Session s,Settings.Entry entry){
+        if(!entry.permission().isBlank()&&!p.hasPermission(entry.permission())){p.sendMessage(message("no-permission"));return;}
+        if(settings.automatic()&&s.catalog.stream().noneMatch(name->name.equalsIgnoreCase(entry.target()))) {
+            p.sendMessage(message("unavailable"));return;
         }
-        title=title.append(gui.label("Seite "+(page+1)+" / "+MenuLayout.pages(entries.size()),8,"status",132,64,TextColor.color(0x5A4D3A)));
-        String[] nav={settings.yaml().getString("menu.previous","Zurück"),settings.yaml().getString("menu.close","Schließen"),settings.yaml().getString("menu.next","Weiter")};
-        for (int i=0;i<3;i++) title=title.append(gui.label(nav[i],8,"nav",34+i*54,40,
-            TextColor.color(i==0&&page==0 || i==2&&page+1>=MenuLayout.pages(entries.size()) ? 0xC5B6A0 : 0xFFF4D6)));
-        var holder = new Menu(page,entries);
-        holder.inventory=Bukkit.createInventory(holder,54,title);
-        for (int slot=0;slot<54;slot++) {
-            int local=MenuLayout.entryAt(slot);
-            String name=" "; List<Component> lore=List.of();
-            if (local>=0 && local<visible.size()) {
-                var e=visible.get(local); name=e.name();
-                var lines=new ArrayList<Component>();
-                for(String line:e.description()) lines.add(text("&7"+line));
-                lines.add(text("&8Ziel: "+e.target())); lines.add(text("&eKlicken zum Verbinden")); lore=lines;
-            } else if(slot>=45) name=nav[(slot-45)/3];
-            ItemStack item=new ItemStack(Material.PAPER); ItemMeta meta=item.getItemMeta();
-            meta.setItemModel(new NamespacedKey("serverhub","invisible"));
-            meta.displayName(text(name)); meta.lore(lore); if(name.equals(" "))meta.setHideTooltip(true);
-            item.setItemMeta(meta); holder.inventory.setItem(slot,item);
-        }
-        p.openInventory(holder.inventory);
+        long now=System.currentTimeMillis();if(now-s.lastSwitch<700)return;s.lastSwitch=now;
+        p.closeDialog();
+        p.sendPluginMessage(this,Wire.CHANNEL,Wire.encode(Wire.Type.CONNECT,s.nonce,entry.target()));
     }
     private boolean isIcon(ItemStack item) {
         return iconKey != null && item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(iconKey,PersistentDataType.BYTE);
@@ -177,31 +168,11 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     }
     @EventHandler(ignoreCancelled=true) public void drop(PlayerDropItemEvent e){if(isIcon(e.getItemDrop().getItemStack()))e.setCancelled(true);}
     @EventHandler public void drag(InventoryDragEvent e){
-        if(e.getView().getTopInventory().getHolder() instanceof Menu||isIcon(e.getOldCursor())){e.setCancelled(true);return;}
+        if(isIcon(e.getOldCursor())){e.setCancelled(true);return;}
         for(int raw:e.getRawSlots())if(isIcon(e.getView().getItem(raw))){e.setCancelled(true);return;}
     }
     @EventHandler public void click(InventoryClickEvent e){
         if(!(e.getWhoClicked() instanceof Player p))return;
-        if(e.getView().getTopInventory().getHolder() instanceof Menu menu) {
-            e.setCancelled(true);
-            if(e.getClick()!=ClickType.LEFT&&e.getClick()!=ClickType.RIGHT)return;
-            int raw=e.getRawSlot(); if(raw<0||raw>=54)return;
-            if(!ready(p)){p.closeInventory();p.sendMessage(message("loading"));return;}
-            if(raw>=45) {
-                int action=(raw-45)/3;
-                Bukkit.getScheduler().runTask(this,()->{if(action==1)p.closeInventory();else open(p,menu.page+(action==0?-1:1));}); return;
-            }
-            int local=MenuLayout.entryAt(raw), index=menu.page*6+local;
-            if(local<0||index>=menu.entries.size())return;
-            Settings.Entry entry=menu.entries.get(index);
-            if(!p.hasPermission("serverhub.use")||!entry.permission().isBlank()&&!p.hasPermission(entry.permission())){p.sendMessage(message("no-permission"));return;}
-            Session s=sessions.get(p.getUniqueId());long now=System.currentTimeMillis();
-            if(s==null||now-s.lastSwitch<700)return; s.lastSwitch=now;
-            Bukkit.getScheduler().runTask(this,()->{
-                p.closeInventory();
-                if(p.isOnline()&&ready(p))p.sendPluginMessage(this,Wire.CHANNEL,Wire.encode(Wire.Type.CONNECT,s.nonce,entry.target()));
-            }); return;
-        }
         if(isIcon(e.getCurrentItem())||isIcon(e.getCursor())
             ||e.getHotbarButton()>=0&&isIcon(p.getInventory().getItem(e.getHotbarButton()))
             ||e.getClick()==ClickType.SWAP_OFFHAND&&isIcon(p.getInventory().getItemInOffHand()))e.setCancelled(true);
@@ -212,7 +183,8 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             try {
                 Settings next=Settings.read(new File(getDataFolder(),"config.yml")); settings=next;
                 for(Player p:Bukkit.getOnlinePlayers()) {
-                    if(p.getOpenInventory().getTopInventory().getHolder() instanceof Menu menu)open(p,menu.page);
+                    Session s=sessions.get(p.getUniqueId());if(s!=null)s.menuToken=null;
+                    hello(p);
                     applyIcon(p);
                 }
                 sender.sendMessage(message("reloaded"));

@@ -3,7 +3,7 @@ package de.serverhub.velocity;
 import java.net.*;
 
 final class PackUrls {
-    static final String RELEASE_URL="https://github.com/etzewetze/serverhubgui/releases/download/v2.1.0/serverhub-pack.zip";
+    static final String RELEASE_URL="https://github.com/etzewetze/serverhubgui/releases/download/v2.2.0/serverhub-pack.zip";
     private PackUrls(){}
     static String external(String raw){
         URI uri=URI.create(raw==null?"":raw.trim());

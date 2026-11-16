@@ -1,51 +1,115 @@
-# ServerHub GUI 2.1.0
+# ServerHub GUI 2.2.0
 
-**Eine JAR für Paper und Velocity. Ein Pflichtpaket pro Netzwerkbeitritt.**
+**Automatische Velocity-Serverliste, echte Dialoge und ein Shift/+/F-Hinweis neben der Hotbar.**
 
-[ServerHub-2.1.0.jar herunterladen](https://github.com/etzewetze/serverhubgui/releases/download/v2.1.0/ServerHub-2.1.0.jar) · [Release und Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.1.0)
+[Universal-JAR herunterladen](https://github.com/etzewetze/serverhubgui/releases/download/v2.2.0/ServerHub-2.2.0.jar) · [Release und Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.2.0)
 
-Für **Minecraft Java / Paper 26.3**, **Velocity 4.2.0**, **Java 25**.
+Für **Minecraft Java / Paper 26.3**, **Velocity 4.2.0**, **Java 25**. Auf Proxy und Backends wird dieselbe JAR installiert. Kein zusätzlicher Client-Mod erforderlich.
 
-![Gestaltungsvorschau – kein Ingame-Screenshot](preview/Menue-Vorschau.png)
+![Designreferenz des Dialogs und schematische HUD-Position; kein Ingame-Screenshot](preview/Menue-Vorschau.png)
+
+## Änderungen in 2.2
+
+- Die Ziele werden direkt mit der Velocity-API aus allen aktuell registrierten Servern gelesen. Auch nachträglich registrierte oder entfernte Server werden beim nächsten Abgleich berücksichtigt.
+- Das Menü verwendet die native Dialog-API. Es öffnet weder ein Truheninventar noch ein Spielerinventar. Hinter den Holzbuttons liegen echte Dialog-Aktionen, keine versteckten Inventarslots.
+- Breite Holzbuttons und eine neue, kräftige, nicht kondensierte Sans-Schrift ersetzen die kleinen alten Beschriftungen. Standardgröße 12; Umlaute bleiben unterstützt.
+- „Serverauswahl“ steht mittig auf einer eigenen Pergamentrolle mit dunkler Schrift.
+- Drei beschriftete Holzbretter zeigen **Shift**, **+**, **F** rechts neben der Hotbar. Dafür wird kein Inventarplatz belegt.
+- Die bestehende Paketpflicht bleibt erhalten: genau ein Angebot pro Netzwerkverbindung, auch bei Backend-Wechseln und Reloads.
 
 ## Installation und Update
 
-1. Proxy und Paper-Server beenden. Alte `ServerHub.jar`, `ServerHub-Paper-2.0.0.jar` bzw. `ServerHub-Velocity-2.0.0.jar` entfernen. Pro Prozess darf nur eine ServerHub-JAR installiert sein.
-2. **Dieselbe `ServerHub-2.1.0.jar`** in den `plugins/`-Ordner des Velocity-Proxys und in `plugins/` jedes gewünschten Paper-Backends kopieren. Es bleibt eine gemeinsame Download-Datei; sie wird an beiden Stellen gebraucht. Die Plattform lädt automatisch ihren eigenen Einstiegspunkt.
-3. Das Netzwerk vollständig neu starten. Modern Forwarding muss bereits funktionieren; Backends dürfen ausschließlich über den vertrauenswürdigen Proxy erreichbar sein.
-4. In `plugins/ServerHubPaper/config.yml` auf den Backends die `target`-Namen an `[servers]` in `velocity.toml` anpassen. Mitgeliefert sind `lobby`, `survival`, `creative`, `test`, `kalle`.
-5. Im Standardmodus wird das Pflichtpaket **direkt per HTTPS aus diesem GitHub-Release** geladen. Kein weiterer HTTP-Port und keine selbst einzutragende Paketadresse sind nötig. Die ZIP steckt auch in der JAR und wird auf dem Proxy unter `plugins/serverhub-velocity/serverhub-pack.zip` abgelegt.
-6. In der Proxy-Konsole `/serverhubproxy packcheck` ausführen. Erwartet werden HTTP 200 und ein passender SHA-1. Danach mit einem Java-Client über die öffentliche Velocity-Adresse beitreten.
+1. Velocity und alle Paper-Backends beenden. Alte ServerHub-JARs entfernen; pro Prozess nur eine ServerHub-JAR verwenden.
+2. Dieselbe `ServerHub-2.2.0.jar` in `plugins/` des Proxys und aller gewünschten Backends kopieren.
+3. Das Netzwerk vollständig neu starten. Modern Forwarding muss funktionieren; Backends dürfen nur über den vertrauenswürdigen Proxy erreichbar sein.
+4. Bei einem Update von 2.1 wird die Paper-Konfiguration unter `config-v2.1-backup.yml` gesichert. Automatische Servererkennung, neue Schriftgröße und HUD-Hinweis werden aktiviert; eigene Servernamen, Ziele und Rechte bleiben erhalten. Der zusätzliche Hotbar-Gegenstand wird deaktiviert.
+5. Im GitHub-Standardmodus wird die unveränderte Paket-ZIP aus 2.1 auf dem Proxy gesichert und durch die neue eingebettete ZIP ersetzt. Eigene Paketdateien werden nicht überschrieben. Bei `external` oder `self-host` die neue Release-ZIP selbst als `pack.file` und am eigenen Downloadziel bereitstellen.
+6. In der Proxy-Konsole `/serverhubproxy packcheck` ausführen. Erwartet: HTTP 200 und passender SHA-1. Anschließend neu verbinden, damit die neue Paketsitzung beginnt.
 
-### Vorhandene 2.0-Konfiguration
+Im Standardmodus lädt der Client das Pflichtpaket direkt über HTTPS aus dem versionsgebundenen GitHub-Release. Zusätzlicher HTTP-Port und manuelle Paketadresse sind nicht nötig. Die lokale Proxy-Datei liegt unter `plugins/serverhub-velocity/serverhub-pack.zip`.
 
-Die alte Proxy-Konfiguration ohne `pack.mode` wird automatisch nach `config-v2.0-backup.properties` gesichert und auf `pack.mode=github` umgestellt. Angepasste Timeouts, Meldungen und der Paket-Dateiname bleiben erhalten; die frühere `pack.url`-/Port-Konfiguration liegt in der Sicherung. Dadurch wird eine alte, nicht erreichbare HTTP-Adresse nicht weiter benutzt. Eine ausdrücklich gesetzte neue Konfiguration mit `pack.mode` wird nicht überschrieben.
+## Automatische Serverliste
 
-Die Paper-Konfiguration bleibt erhalten. Für eine Erstinstallation mit der ursprünglichen fremdgenerierten JAR den alten Ordner `plugins/ServerHubPaper` zuerst sichern und die neue Beispielkonfiguration verwenden.
+`server-discovery.enabled: true` ist Standard. Paper fragt den Proxy beim Beitritt und etwa alle fünf Sekunden nach der Liste. Ein erneutes Öffnen oder Blättern verwendet den zuletzt erhaltenen Stand. Ein bereits offener Dialog wird durch Abgleiche nicht unaufgefordert neu geöffnet.
 
-## Paket nur einmal im Netzwerk
+Es werden bis zu 256 bei Velocity registrierte Ziele mit Namen aus Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich angezeigt, maximal 64 Zeichen pro Ziel. Die Liste ist alphabetisch sortiert. Registriert bedeutet nicht zwingend online: ein gerade abgeschaltetes Backend kann weiterhin in Velocity registriert und damit sichtbar sein. Verbindungsfehler werden gemeldet.
 
-Der Proxy verwaltet eine Sitzung vom ersten Backend-Beitritt bis zum echten Trennen der Verbindung. **Ein internes Wechseln zwischen Lobby, Survival, Creative usw. erzeugt keine neue Sitzung und kein neues ServerHub-Paketangebot.** Paper fragt lediglich den bestehenden Ladezustand beim Proxy ab. Auch mehrere gleichzeitige Handshakes, ein Paper-Reload oder `/serverhubproxy reload` starten keinen weiteren Download.
+Ohne Anpassungen genügt auf Paper:
 
-Bei einem erneuten Netzwerkbeitritt wird das Paket wieder als erforderlich angeboten. Minecraft kann die vorhandene Cache-Kopie anhand des SHA-1 nutzen; es muss nicht zwingend erneut heruntergeladen werden. Ob ein Bestätigungsdialog erscheint, hängt auch von den gespeicherten Client-Einstellungen für Server-Ressourcenpakete ab.
+```yaml
+server-discovery:
+  enabled: true
+servers: {}
+```
 
-Änderungen an Paketdatei oder Downloadadresse gelten für **neue Netzwerkbeitritte**. Bereits verbundene Spieler behalten ihre bestehende Paketsitzung. Zum Übernehmen einer Paketänderung neu verbinden. Beim Selbsthosting bleiben gerade verwendete Hash-Versionen verfügbar, damit ein laufender Download bei einem Reload nicht plötzlich andere ZIP-Bytes erhält.
+Einträge unter `servers` sind optionale Anpassungen für ein registriertes Ziel:
 
-Erst die erfolgreiche Anwendung des **genau zu dieser Sitzung gehörenden** Pakets schaltet das Menü frei. `ACCEPTED`/`DOWNLOADED` oder die Statusmeldung eines anderen Pakets reichen nicht. Ablehnung, Download-/Ladefehler, Verwerfen oder Timeout führen zum Kick. Das Standardlimit beträgt 120 Sekunden. Weitere Backend-Wechsel bleiben bis zur Paketladung gesperrt; die erste Backend-Verbindung ist für die Darstellung des Angebots nötig. ServerHub ist keine allgemeine Login-/Bewegungssperre.
+```yaml
+servers:
+  lobby:
+    target: lobby
+    name: 'Treffpunkt'
+    color: '#A8E091'
+    font-size: 12
+    description: ['Die gemeinsame Lobby']
+  test:
+    target: testserver
+    name: 'Testserver'
+    permission: serverhub.test
+  intern:
+    target: internal
+    hidden: true
+```
 
-**Andere Plugins:** ServerHub sendet sein Paket additiv und ruft kein globales `clearResourcePacks` auf. ExtraItems-Pakete bleiben erhalten. ExtraItems verwaltet aber eigene Paketangebote; diese werden durch ServerHub nicht abgeschaltet. Falls ExtraItems auf mehreren Backends jeweils einen Dialog auslöst, muss dessen eigene Auslieferung zusätzlich netzwerkweit eingerichtet werden.
+Nicht mehr registrierte Ziele erscheinen im Automatikmodus nicht. Ein ausdrückliches `false` für `serverhub.connect.<target>` am Proxy blendet das Ziel bereits vor der Übertragung aus und sperrt auch die Verbindung. Paper prüft zusätzlich optionale Eintragsrechte. Es werden nur Zielnamen übertragen, keine Backend-Adressen oder Ports. Die Nachrichten sind an die jeweilige Backend-Sitzung gebunden und werden niemals an Clients weitergeleitet.
 
-## Download-Modi und Diagnose
+`server-discovery.enabled: false` verwendet ausschließlich die manuell eingetragenen Ziele. Änderungen mit `/extramenü reload` laden und das Menü erneut öffnen. Konfigurations-Reloads entwerten alte Menüaktionen, damit sie keine veralteten Ziele mehr auslösen.
 
-Einstellungen auf dem Proxy: `plugins/serverhub-velocity/config.properties`.
+## Menü und HUD
+
+**Shift + F** öffnet das Menü. Bei umbelegtem Handtausch gilt die neue Handtausch-Taste. Alternativ `/extramenü`, `/extramenu`, `/extramen` oder `/serverhub`. Der Hinweis zeigt die angefragte Standardkombination; der Client übermittelt dem Plugin keine individuellen Tastenbelegungen.
+
+Der Dialog enthält zwei Spalten mit bis zu sechs Servern pro Seite. `Zurück` und `Weiter` blättern, `Schließen` und Escape führen zurück ins Spiel. Lange Namen werden passend gekürzt; der Tooltip enthält den vollständigen Namen und die Beschreibung. Das Öffnen schließt zuvor offene Container, damit nach dem Dialog kein altes Inventar wieder erscheint. Inventarinhalte werden für das Menü nicht verändert.
+
+Das HUD-Symbol wird als verschobene Actionbar-Fontgrafik angezeigt und jede Sekunde erneuert. Die Position bezieht sich auf die Bildschirmmitte und skaliert mit der normalen GUI-Skalierung:
+
+```yaml
+shift-f-hint:
+  enabled: true
+  interval-seconds: 1
+  x-offset: 106
+  y-offset: 0
+```
+
+`x-offset` gibt GUI-Pixel rechts der Mitte an (94–512), positive `y-offset`-Werte verschieben nach unten (−32 bis 32). Die Standardposition ist für die normale Java-Hotbar vorgesehen. HUD-Mods, ungewöhnliche Skalierungen oder der Hotbar-Angriffsindikator können eine Anpassung erfordern. F1 blendet die normale HUD-Ausgabe aus. Andere Plugins, die ebenfalls Actionbars senden, können den Hinweis vorübergehend überschreiben; Minecraft stellt dafür keinen eigenen zusätzlichen HUD-Kanal bereit.
+
+Die Grafik ist ein Tastaturhinweis, keine frei anklickbare HUD-Schaltfläche. Die native Dialog-API steuert weiterhin das Verhalten von Fokus, Escape und Tooltips. Es werden keine globalen Minecraft-Menütexturen oder Shader ersetzt. Ein beliebig programmierbares eigenes Client-Fenster würde einen Client-Mod erfordern.
+
+Ein zusätzlicher Rechtsklick-Gegenstand **in** der Hotbar ist auf Wunsch weiter möglich:
+
+```yaml
+hotbar-icon:
+  enabled: true
+  slot: 8
+```
+
+Er ist standardmäßig aus. Vorhandene Gegenstände werden bei Aktivierung nur in einen freien normalen Inventarplatz umgelagert. Bei vollem Inventar wird kein Gegenstand überschrieben. Shift+F und der HUD-Hinweis funktionieren unabhängig davon.
+
+## Paketpflicht und Download
+
+Die Proxy-Sitzung bleibt vom ersten Backend-Beitritt bis zum echten Verbindungsende bestehen. Backend-Wechsel, Handshakes und Reloads versenden kein weiteres ServerHub-Paketangebot. Ein Wiederbeitritt beginnt eine neue Sitzung; der Minecraft-Cache kann die identische ZIP wiederverwenden.
+
+Nur die erfolgreiche Anwendung des genau zugehörigen Pakets schaltet das Menü frei. Ablehnung, Fehler, Verwerfen oder Timeout führen zum Kick. Andere Plugins können eigene Paketangebote senden; ServerHub entfernt deren Pakete nicht. Änderungen an Paketdatei oder URL gelten für neue Verbindungen.
+
+Proxy-Einstellungen: `plugins/serverhub-velocity/config.properties`.
 
 | Modus | Verhalten |
 |---|---|
-| `pack.mode=github` | Standard: versionsgebundene öffentliche HTTPS-Release-ZIP. Die lokale ZIP muss unverändert dem in der JAR enthaltenen Paket entsprechen. |
-| `pack.mode=self-host` | Proxy hostet die ZIP selbst. `self-host.public-host=auto` verwendet den Hostnamen aus der Beitrittsadresse, ähnlich dem Vorgehen von ExtraItems. |
-| `pack.mode=external` | `pack.external-url` muss direkt dieselben ZIP-Bytes bereitstellen wie `pack.file`. Eigener HTTPS-Webspace ist möglich. |
+| `pack.mode=github` | Standard: exakte mitgelieferte ZIP aus dem HTTPS-Release. |
+| `pack.mode=self-host` | Eigener HTTP-Server auf dem Proxy; öffentlichen Host und Port erreichbar machen. |
+| `pack.mode=external` | Eigene direkte HTTP(S)-ZIP-Adresse unter `pack.external-url`. |
 
-Selbsthosting-Beispiel:
+Beispiel für Selbsthosting:
 
 ```properties
 pack.mode=self-host
@@ -56,60 +120,23 @@ self-host.scheme=http
 self-host.advertised-port=8124
 ```
 
-TCP-Port **8124 auf dem Velocity-Host** beim Hoster freigeben bzw. weiterleiten. Er ist vom Minecraft-Port und vom ExtraItems-Standardport 8123 getrennt. `auto` erkennt keinen beliebigen SRV-Zielhost, Tunnel oder NAT-Port automatisch. Dort eine feste öffentliche Domain/IP ohne Protokoll/Port und den tatsächlichen öffentlichen Port eintragen. IPv6 wird unterstützt. `https` ist für einen vorgeschalteten TLS-Reverse-Proxy vorgesehen; der eingebaute HTTP-Server selbst erzeugt keine TLS-Zertifikate. Bind, Port oder Aktivierung des HTTP-Servers ändern erfordert einen vollständigen Proxy-Neustart.
+TCP-Port 8124 muss zum Velocity-Host freigegeben sein. `auto` verwendet die öffentliche Beitrittsadresse. Bei SRV, Tunnels oder NAT einen festen öffentlichen Host und den tatsächlich erreichbaren Port setzen. IPv6 wird unterstützt. HTTPS beim Selbsthosting benötigt einen vorgeschalteten TLS-Proxy. Änderungen an HTTP-Bind, Port oder Aktivierung erfordern einen Neustart.
 
-Bei `external` keine GitHub-Dateiansicht, Login-Seite oder Freigabeseite verwenden. Ein direkter Release-Asset-Link ist geeignet. Die ZIP beim Hochladen nicht neu verpacken, da sich dadurch der SHA-1 ändert. Eigene Texturen über `self-host` oder `external` ausliefern; der GitHub-Modus gehört zum unveränderten Release-Paket.
+`/serverhubproxy packcheck` folgt Weiterleitungen und prüft HTTP-Code sowie den vollständigen SHA-1 vom Proxy aus. HTML-Seiten oder abweichende ZIP-Bytes werden abgewiesen. Das bestätigt die Erreichbarkeit vom Proxy, nicht von jedem Spieleranschluss.
 
-`/serverhubproxy packcheck` lädt die Antwort **vom Proxy aus**, folgt HTTP(S)-Weiterleitungen und vergleicht den vollständigen SHA-1. Er meldet u.a. HTTP 404, nicht erreichbare Hosts, HTML statt ZIP und abweichende Hashes. Das beweist die Erreichbarkeit vom Proxy, nicht von jedem Spieleranschluss. Bei `self-host.public-host=auto` den Befehl im Spiel ausführen oder den öffentlichen Host fest setzen. Ein `FAILED_DOWNLOAD` schreibt Status und verwendete Adresse in die Proxy-Konsole. Der Pflichtmodus wird bei Fehlern nicht stillschweigend deaktiviert.
-
-## Menü und Bedienung
-
-- **Shift + F:** schleichen und die Taste für den Handtausch drücken. Bei umbelegtem F gilt die neue Handtausch-Taste.
-- `/extramenü`, `/extramenu`, `/extramen` oder `/serverhub` öffnen das Menü.
-- Tabelle mit **zwei Spalten und drei Zeilen**, sechs Ziele pro Seite. `Zurück`/`Weiter` blättern; `Schließen` beendet das Menü.
-- Steinfläche mit feinen Haarrissen, Holz-/Messingrahmen und den bereitgestellten Holzbuttons. Normale Truhen behalten ihr Aussehen.
-- Schriftvarianten **8, 10 und 12**, pro Menü oder Eintrag einstellbar. Hexfarbe über `color: '#12AB34'`. Menü-Namen als Klartext; Tooltip zeigt den vollständigen Namen. Längere Beschriftungen werden passend gekürzt.
-- Die Schriften unterstützen Latein und Latin-1 einschließlich äöüÄÖÜß. Chat/Hinweise unterstützen `&#RRGGBB` und klassische `&`-Farbcodes.
-- Optionales Hotbar-Icon mit `hotbar-icon.enabled` und `slot: 0` bis `8`. Bis zur Paketladung Kompass, danach eigenes Menü-Icon; Rechtsklick öffnet das Menü. Das Icon ist gegen Ablegen/Verschieben geschützt.
-- Vorhandene Gegenstände werden nur in einen freien normalen Inventarplatz umgelagert. Bei vollem Inventar wird kein Gegenstand überschrieben; Shift+F bleibt nutzbar. Ein erneuter Login oder Reload versucht die Icon-Platzierung erneut.
-- Optionaler dezenter Hinweis mit Symbol in der Actionbar. Er ist im Vanilla-Client **zentriert oberhalb der Hotbar** und kann Actionbars anderer Plugins überlagern.
-- Verbindungen erfolgen mit der nativen Velocity-API. Einträge brauchen den **echten Servernamen**, nicht nur einen Alias eines anderen Plugins. Bestehende fremde Alias-Befehle werden nicht geändert.
-
-Die Oberfläche nutzt Inventar-Klickbereiche und Seiten. Freies Mausrad-Scrollen, ein frei rechts neben der Hotbar verankertes HUD und ein animierter Druckzustand für den ganzen Holzbutton sind nicht enthalten. Beim Überfahren kann der Vanilla-Client eine einzelne Inventarzelle markieren. Die Vorschau ist aus den echten Texturatlanten zusammengesetzt und kein Screenshot eines laufenden Clients.
-
-## Ziele ergänzen und neu laden
-
-Beispiel zusätzlich unter `servers` in der Paper-Konfiguration:
-
-```yaml
-  event:
-    name: 'Event'
-    target: event
-    color: '#AADDFF'
-    font-size: 10
-    description:
-      - 'Unser aktuelles Event'
-    # permission: serverhub.event
-```
-
-Danach auf dem jeweiligen Backend `/extramenü reload` ausführen. Die Liste und offene ServerHub-Menüs werden aktualisiert; eine neue Textur-ZIP ist für weitere Server nicht nötig. Die Ziele müssen zusätzlich in Velocity registriert sein. Bei mehreren Backends die Konfiguration dort ebenfalls verteilen und neu laden. Ungültige Einstellungen werden abgewiesen, die vorherige Konfiguration bleibt aktiv.
-
-Der Testserver ist standardmäßig mit `serverhub.test` geschützt und für normale Spieler ausgeblendet. Recht vergeben oder den `permission`-Eintrag entfernen, wenn ihn jeder sehen soll.
+## Befehle und Rechte
 
 | Aktion | Befehl / Recht |
 |---|---|
 | Menü öffnen | `/extramenü`; `serverhub.use` (Standard alle) |
 | Paper-Konfiguration laden | `/extramenü reload`; `serverhub.reload` (Standard OP) |
-| Testserver sehen | `serverhub.test` (Standard OP) |
-| Proxy-Konfiguration laden | `/serverhubproxy reload`; `serverhub.proxy.reload` oder Proxy-Konsole |
-| Proxy-Status / Download prüfen | `/serverhubproxy status` bzw. `packcheck`; gleiches Proxy-Recht |
-| Ziel am Proxy sperren | `serverhub.connect.<target>` ausdrücklich auf `false` setzen |
+| Proxy-Konfiguration laden | `/serverhubproxy reload`; `serverhub.proxy.reload` |
+| Proxy-Status / Download prüfen | `/serverhubproxy status` / `packcheck`; gleiches Proxy-Recht |
+| Ein Ziel sperren | Am Proxy `serverhub.connect.<target>` ausdrücklich auf `false` setzen |
 
-Paper- und Proxy-Berechtigungen sind getrennte Kontexte. Optionale Eintragsrechte werden auf Paper geprüft, die ausdrückliche Proxy-Sperre gilt zusätzlich. Bei fehlendem Proxy-Modul bleibt das Menü gesperrt; nach dem Handshake-Timeout wird getrennt. Eine parallele ServerHub-Paketpflicht durch `server.properties` oder eine alte JAR vermeiden.
+## Build und Prüfung
 
-## Build und Veröffentlichung
-
-Vollständiger Quellcode und Grafikquellen liegen in diesem Repository. Java 25, Maven 3.9+ und Python 3 verwenden:
+Java 25, Maven 3.9+ und Python 3:
 
 ```sh
 python3 tools/package_pack.py
@@ -117,24 +144,16 @@ mvn -B clean verify
 python3 tools/prepare_release.py
 ```
 
-Die eine fertige JAR liegt in `universal/target/ServerHub-2.1.0.jar`, veröffentlichbare Dateien in `dist/`. Die separaten Modul-JARs in `paper/target/` und `velocity/target/` sind interne Build-Zwischenergebnisse; installieren soll man die Universal-JAR.
+Die installierbare Datei liegt in `universal/target/ServerHub-2.2.0.jar`. Modul-JARs sind interne Zwischenergebnisse. Normale Builds verpacken die eingecheckten Grafiken unverändert. Neugenerierung: Pillow installieren, dann `python3 tools/build_pack.py` und `python3 tools/render_preview.py`.
 
-Die eingecheckten PNGs werden beim normalen Build unverändert verpackt; dafür sind keine zusätzlichen Python-Pakete nötig. Zum Neugenerieren aus den hochauflösenden Grafikquellen `Pillow` installieren und `python3 tools/build_pack.py` ausführen; `tools/render_preview.py` braucht zusätzlich `PyYAML`.
+GitHub Actions prüft Protokollgrenzen, dynamische Serverlisten und Rechte, Konfigurations-/Paketmigration, Paketlebenszyklus, HTTP-Weiterleitungen und die gepackte JAR mit getrennten Plattform-Klassenladern. Auf `main` wird das bezeichnete Release mit JAR, Paket-ZIP, Prüfsummen, Prüfbericht, Komplettpaket und Designreferenz veröffentlicht. Danach werden die öffentlichen JAR-/ZIP-Downloads einschließlich Weiterleitungen, SHA-1, SHA-256 und eingebetteten Paketbytes geprüft. Bestehende Releases werden nicht überschrieben.
 
-GitHub Actions führt die Tests einschließlich der fertig gepackten Universal-JAR aus und erstellt auf `main` das in `release-version.txt` bezeichnete Release mit JAR, exakter Paket-ZIP, SHA-1, SHA-256 und Komplettpaket. Bereits veröffentlichte Release-Assets werden bei weiteren Commits nicht überschrieben. Für eine neue Version Maven-/Plugin-Version, `release-version.txt`, feste Release-URL und Release-Notizen gemeinsam aktualisieren.
+Die Vorschau ist eine Designreferenz aus den echten Texturen, kein Screenshot eines verbundenen Minecraft-Clients. Darstellung, native Dialogausrichtung, HUD-Position und Zusammenspiel mit Fremdplugins müssen im Spiel geprüft werden. Bedrock/Geyser und abweichende Spielversionen sind nicht geprüft.
 
-## Validierung und Grenzen
+## Grafik und API
 
-Automatisierte Prüfungen umfassen Paketpflicht und exakte UUID, Timeout, parallele Initialisierung, Backend-Handshakes mit erhaltenem Ladezustand, Reload ohne neues Angebot, echten Wiederbeitritt, veraltete Disconnect-Ereignisse, Konfigurationsmigration, IPv6 und URL-Erzeugung, HTTP-Redirects, falsche Inhalte/Hashes, Plugin-Kanal-Spoofing, Menü-Seiten und Item-Erhalt.
+Die Holztextur stammt aus der bereitgestellten Vorlage. Die neue Pergamentrolle wird aus dem eingecheckten Generator aufgebaut. Die Schrift ist ein Latin-1-Subset von DejaVu Sans Bold; Lizenz liegt bei. Die frühere kondensierte Schrift und Stein-Grafikquelle bleiben als Ausgangsmaterial im Repository erhalten.
 
-Die fertig gepackte Universal-JAR wird zusätzlich in getrennten Klassenladern geprüft: Paper-Einstiegspunkt ohne Velocity-API und Velocity-Einstiegspunkt ohne Bukkit. Beide Deskriptoren und die identischen eingebetteten Paket-Bytes werden geprüft. Das ist **kein vollständiger Spieltest** mit verbundenem Minecraft-Client. Darstellung, vorhandene Fremdplugins und die konkrete Netzwerkumgebung müssen im Spiel geprüft werden. Bedrock/Geyser und andere Spielversionen sind nicht geprüft. Die Paketpflicht beruht auf den Client-Statusmeldungen und ist keine Integritätsprüfung gegen manipulierte Clients.
-
-## Grafik und Referenzen
-
-Die Holzbutton-Grafik stammt aus der bereitgestellten Vorlage; das Steinpanel wurde dafür generiert. Grafikquellen und Beschreibung liegen in `art-source/`; der Button wird als kompakte vorbereitete Spieltextur mitgeführt. Die Bitmap-Schriften wurden aus DejaVu Sans Condensed erzeugt; die Lizenz liegt bei.
-
-Die Selbsthosting-Adressbildung wurde mit [ExtraItems PackService](https://github.com/etzewetze/extraitems/blob/main/Quellcode/src/main/java/de/extraitems/PackService.java) abgeglichen. ExtraItems wird nicht verändert.
-
-- [Paper-Projektaufbau](https://docs.papermc.io/paper/dev/project-setup/)
+- [Paper Dialog-API](https://docs.papermc.io/paper/dev/dialogs/)
+- [Velocity ProxyServer](https://jd.papermc.io/velocity/4.2.0/com/velocitypowered/api/proxy/ProxyServer.html)
 - [Velocity Plugin Messaging](https://docs.papermc.io/velocity/dev/plugin-messaging/)
-- [Velocity ResourcePackInfo](https://jd.papermc.io/velocity/4.2.0/com/velocitypowered/api/proxy/player/ResourcePackInfo.Builder.html)
