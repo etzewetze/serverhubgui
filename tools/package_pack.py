@@ -11,6 +11,12 @@ def main():
         data=json.loads(path.read_text(encoding="utf-8"))
         for provider in data.get("providers",[]):
             if provider.get("type")=="bitmap":
+                height=provider.get("height",8);ascent=provider.get("ascent")
+                if not isinstance(height,int) or height<1 or not isinstance(ascent,int) or ascent>height:
+                    raise SystemExit(f"Invalid bitmap height/ascent in {path}")
+                chars=provider.get("chars",[])
+                if not chars or not chars[0] or len({len(row) for row in chars})!=1:
+                    raise SystemExit(f"Invalid bitmap character grid in {path}")
                 ns,name=provider["file"].split(":",1)
                 texture=source/"assets"/ns/"textures"/name
                 if not texture.is_file():raise SystemExit(f"Missing bitmap: {texture}")

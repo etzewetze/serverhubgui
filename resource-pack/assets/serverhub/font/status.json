@@ -4,7 +4,7 @@
       "type": "bitmap",
       "file": "serverhub:gui/status.png",
       "height": 6,
-      "ascent": 7,
+      "ascent": 6,
       "chars": [
         ""
       ]

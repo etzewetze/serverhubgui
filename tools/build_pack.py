@@ -39,7 +39,7 @@ def main():
     di.rectangle((0,0,139,19),outline='#8C663A');di.line((1,1,138,1),fill='#EDD7A9')
     info.save(gui/'info.png')
     dot=Image.new('RGBA',(6,6),(255,255,255,0));ImageDraw.Draw(dot).ellipse((0,0,5,5),fill='white');dot.save(gui/'status.png')
-    save_json(A/'font/status.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/status.png','height':6,'ascent':7,'chars':['\uE300']}]})
+    save_json(A/'font/status.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/status.png','height':6,'ascent':6,'chars':['\uE300']}]})
     save_json(A/'font/gui.json',{'providers':[
         {'type':'bitmap','file':'serverhub:gui/scroll.png','height':30,'ascent':21,'chars':['\uE000']},
         {'type':'bitmap','file':'serverhub:gui/button.png','height':20,'ascent':13,'chars':['\uE001']},

@@ -19,7 +19,7 @@ class NetworkModeTest {
         var o=new MenuOptions(Map.of("menu.layout","list","menu.navigation","scroll","shift-f-hint.enabled","false","hotbar-icon.slot","3"));
         var e=new MenuSnapshot.Entry("survival","Überleben","#12AB34",10,"serverhub.survival",List.of("Beschreibung"),MenuSnapshot.Status.SLEEPING);
         var settings=Settings.fromNetwork(new MenuSnapshot(UUID.randomUUID(),o,List.of(e)));
-        assertEquals("#12ab34",settings.entries().getFirst().color().asHexString());assertEquals(10,settings.entries().getFirst().size());
+        assertEquals(0x12AB34,settings.entries().getFirst().color().value());assertEquals(10,settings.entries().getFirst().size());
         assertEquals(MenuSnapshot.Status.SLEEPING,settings.entries().getFirst().status());assertFalse(settings.hint());assertEquals(3,settings.slot());
         assertEquals(1,settings.menuOptions().columns());assertTrue(settings.menuOptions().scrolling());
     }
