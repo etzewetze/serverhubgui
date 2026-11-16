@@ -161,7 +161,7 @@ class ProxyPackLifecycleTest {
     }
     @Test void navigatorOwnsManagedRequestsAndServerHubDoesNotBypassTheStartDelay()throws Exception{
         setup("https://example.org/serverhub.zip");connect();status(packId,PlayerResourcePackStatusEvent.Status.SUCCESSFUL);var connection=backend();var target=registered("survival");
-        when(proxy.getAllServers()).thenReturn(List.of(connection.getServer(),target));when(proxy.getServer("survival")).thenReturn(Optional.of(target));
+        var lobby=connection.getServer();when(proxy.getAllServers()).thenReturn(List.of(lobby,target));when(proxy.getServer("survival")).thenReturn(Optional.of(target));
         var api=new NavigatorBridgeTest.Api();api.waiting=player.getUniqueId();
         var manager=mock(com.velocitypowered.api.plugin.PluginManager.class);var container=mock(com.velocitypowered.api.plugin.PluginContainer.class);
         when(proxy.getPluginManager()).thenReturn(manager);when(manager.getPlugin("servernavigator")).thenReturn(Optional.of(container));doReturn(Optional.of(api)).when(container).getInstance();
