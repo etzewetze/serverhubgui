@@ -63,3 +63,38 @@ jobs:
             --title "ServerHub $version – Universal-JAR und HTTPS-Paket" \
             --notes-file RELEASE-NOTES.md \
             --latest
+      - name: Verify public release downloads
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          version=$(cat release-version.txt)
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/v$version"
+          mkdir -p verified-release
+          for asset in "ServerHub-$version.jar" serverhub-pack.zip serverhub-pack.sha1 SHA256SUMS.txt; do
+            curl --fail --location --retry 5 --retry-all-errors --connect-timeout 15 --max-time 120 \
+              --proto '=https' --proto-redir '=https' \
+              --output "verified-release/$asset" \
+              --write-out "$asset: HTTP %{http_code}, %{num_redirects} redirects, %{size_download} bytes\n" \
+              "$base/$asset"
+          done
+          (cd verified-release && sha256sum --check SHA256SUMS.txt)
+          cmp dist/serverhub-pack.zip verified-release/serverhub-pack.zip
+          cmp dist/serverhub-pack.sha1 verified-release/serverhub-pack.sha1
+          python3 - <<'PYVERIFY'
+          from pathlib import Path
+          import hashlib, json, zipfile
+          root = Path('verified-release')
+          version = Path('release-version.txt').read_text().strip()
+          pack = (root / 'serverhub-pack.zip').read_bytes()
+          digest = hashlib.sha1(pack).hexdigest()
+          assert digest == (root / 'serverhub-pack.sha1').read_text().strip(), 'Public pack SHA-1 mismatch'
+          with zipfile.ZipFile(root / f'ServerHub-{version}.jar') as jar:
+              assert jar.read('serverhub-pack.zip') == pack, 'Published JAR embeds a different pack'
+              assert json.loads(jar.read('velocity-plugin.json'))['version'] == version
+              assert f'version: {version}' in jar.read('plugin.yml').decode()
+              for entry in ('de/serverhub/paper/ServerHubPaper.class', 'de/serverhub/velocity/ServerHubVelocity.class'):
+                  assert entry in jar.namelist(), f'Missing entrypoint: {entry}'
+              assert not any(n.startswith(('org/bukkit/', 'com/velocitypowered/api/')) for n in jar.namelist())
+          print(f'Public release downloads verified; pack SHA-1 {digest}')
+          PYVERIFY
+
