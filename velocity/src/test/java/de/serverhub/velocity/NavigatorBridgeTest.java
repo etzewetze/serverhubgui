@@ -18,7 +18,7 @@ class NavigatorBridgeTest {
     }
     NavigatorBridge bridge(Object api){
         ProxyServer proxy=mock(ProxyServer.class);PluginManager manager=mock(PluginManager.class);PluginContainer plugin=mock(PluginContainer.class);
-        when(proxy.getPluginManager()).thenReturn(manager);when(manager.getPlugin("servernavigator")).thenReturn(Optional.of(plugin));when(plugin.getInstance()).thenReturn(Optional.of(api));
+        when(proxy.getPluginManager()).thenReturn(manager);when(manager.getPlugin("servernavigator")).thenReturn(Optional.of(plugin));doReturn(Optional.of(api)).when(plugin).getInstance();
         return new NavigatorBridge(proxy);
     }
     @Test void managedTargetsUseNavigatorsQueueAndItsOwnPlayerWaitingState(){

@@ -164,7 +164,7 @@ class ProxyPackLifecycleTest {
         when(proxy.getAllServers()).thenReturn(List.of(connection.getServer(),target));when(proxy.getServer("survival")).thenReturn(Optional.of(target));
         var api=new NavigatorBridgeTest.Api();api.waiting=player.getUniqueId();
         var manager=mock(com.velocitypowered.api.plugin.PluginManager.class);var container=mock(com.velocitypowered.api.plugin.PluginContainer.class);
-        when(proxy.getPluginManager()).thenReturn(manager);when(manager.getPlugin("servernavigator")).thenReturn(Optional.of(container));when(container.getInstance()).thenReturn(Optional.of(api));
+        when(proxy.getPluginManager()).thenReturn(manager);when(manager.getPlugin("servernavigator")).thenReturn(Optional.of(container));doReturn(Optional.of(api)).when(container).getInstance();
         catalog(connection);UUID nonce=UUID.randomUUID();
         var hello=mock(PluginMessageEvent.class);when(hello.getIdentifier()).thenReturn(MinecraftChannelIdentifier.from(Wire.CHANNEL));when(hello.getSource()).thenReturn(connection);when(hello.getData()).thenReturn(Wire.encode(Wire.Type.HELLO,nonce));plugin.pluginMessage(hello);
         var click=mock(PluginMessageEvent.class);when(click.getIdentifier()).thenReturn(MinecraftChannelIdentifier.from(Wire.CHANNEL));when(click.getSource()).thenReturn(connection);when(click.getData()).thenReturn(Wire.encode(Wire.Type.CONNECT,nonce,"survival"));plugin.pluginMessage(click);
