@@ -1,0 +1,18 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>
+  <parent><groupId>de.serverhub</groupId><artifactId>serverhub-parent</artifactId><version>2.1.0</version></parent>
+  <artifactId>ServerHub</artifactId>
+  <dependencies>
+    <dependency><groupId>de.serverhub</groupId><artifactId>ServerHub-Paper</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>de.serverhub</groupId><artifactId>ServerHub-Velocity</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>io.papermc.paper</groupId><artifactId>paper-api</artifactId><version>26.3.build.253-stable</version><scope>test</scope></dependency>
+    <dependency><groupId>com.velocitypowered</groupId><artifactId>velocity-api</artifactId><version>4.2.0</version><scope>test</scope></dependency>
+  </dependencies>
+  <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId></plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-jar-plugin</artifactId><version>3.4.1</version><configuration><forceCreation>true</forceCreation></configuration></plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-failsafe-plugin</artifactId><version>3.5.3</version>
+      <configuration><argLine>${test.jvm.args}</argLine><systemPropertyVariables><universal.jar>${project.build.directory}/${project.build.finalName}.jar</universal.jar></systemPropertyVariables></configuration>
+      <executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
+    </plugin>
+  </plugins></build>
+</project>
