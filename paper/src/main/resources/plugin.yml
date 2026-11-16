@@ -1,5 +1,5 @@
 name: ServerHubPaper
-version: 2.2.0
+version: 2.3.0
 main: de.serverhub.paper.ServerHubPaper
 api-version: '26.3'
 description: Stein-/Holz-Servermenü mit Pflichtpaket über ServerHub-Velocity

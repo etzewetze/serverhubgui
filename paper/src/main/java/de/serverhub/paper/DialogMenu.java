@@ -1,6 +1,6 @@
 package de.serverhub.paper;
 
-import de.serverhub.common.MenuLayout;
+import de.serverhub.common.*;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.DialogBase;
@@ -15,45 +15,49 @@ import java.time.Duration;
 import java.util.*;
 import java.util.function.*;
 
-/** A native client dialog: no container, fake items, slots or player inventory. */
+/** Native scrollable or paginated dialog; the proxy supplies the complete configuration. */
 final class DialogMenu {
     private DialogMenu() {}
-    static void show(Player player, GuiText gui, Settings settings, List<Settings.Entry> entries, int page,
-                     Consumer<Runnable> dispatch, Consumer<Settings.Entry> choose, IntConsumer navigate) {
-        var buttons = new ArrayList<ActionButton>();
-        int start = page * MenuLayout.PAGE_SIZE;
-        for (var entry : entries.subList(Math.min(start,entries.size()),Math.min(start+MenuLayout.PAGE_SIZE,entries.size()))) {
-            Component tooltip = Component.text(entry.name(),NamedTextColor.WHITE);
-            for (String line : entry.description()) tooltip = tooltip.appendNewline().append(Component.text(line,NamedTextColor.GRAY));
-            tooltip = tooltip.appendNewline().append(Component.text("Ziel: "+entry.target(),NamedTextColor.DARK_GRAY));
-            buttons.add(button(player,gui.button(entry.name(),entry.size(),entry.color()),tooltip,
-                dispatch,()->choose.accept(entry)));
+    static void show(Player player,GuiText gui,Settings settings,List<Settings.Entry> entries,int page,
+                     Consumer<Runnable> dispatch,Consumer<Settings.Entry> choose,IntConsumer navigate){
+        MenuOptions options=settings.menuOptions();int columns=options.columns();
+        int pageSize=options.number("menu.page-size"),pages=options.scrolling()?1:MenuLayout.pages(entries.size(),pageSize);
+        int start=options.scrolling()?0:page*pageSize,end=options.scrolling()?entries.size():Math.min(start+pageSize,entries.size());
+        var buttons=new ArrayList<ActionButton>();
+        for(var entry:entries.subList(Math.min(start,entries.size()),end)){
+            Component tooltip=Component.text(entry.name(),NamedTextColor.WHITE);
+            for(String line:entry.description())tooltip=tooltip.appendNewline().append(Component.text(line,NamedTextColor.GRAY));
+            if(options.flag("status.enabled"))tooltip=tooltip.appendNewline().append(Component.text("Status: "+statusText(entry.status()),NamedTextColor.GRAY));
+            tooltip=tooltip.appendNewline().append(Component.text("Ziel: "+entry.target(),NamedTextColor.DARK_GRAY));
+            buttons.add(button(player,gui.server(entry.name(),entry.size(),entry.color(),entry.status(),options.flag("status.enabled")),tooltip,dispatch,()->choose.accept(entry)));
         }
-        if (MenuLayout.pages(entries.size()) > 1) {
-            // Keep navigation on its own two-column row, including odd-sized last pages.
-            if (buttons.size()%2 != 0) buttons.add(ActionButton.create(Component.empty(),null,140,null));
-            buttons.add(button(player,gui.button(settings.yaml().getString("menu.previous","Zurück"),10,NamedTextColor.WHITE),
-                Component.text("Vorherige Seite"),dispatch,()->navigate.accept(page-1)));
-            buttons.add(button(player,gui.button(settings.yaml().getString("menu.next","Weiter"),10,NamedTextColor.WHITE),
-                Component.text("Nächste Seite"),dispatch,()->navigate.accept(page+1)));
+        if(pages>1){
+            align(buttons,columns);
+            buttons.add(button(player,gui.button(options.text("menu.previous"),10,NamedTextColor.WHITE),Component.text("Vorherige Seite"),dispatch,()->navigate.accept(page-1)));
+            if(columns==1||columns==2)buttons.add(button(player,gui.button(options.text("menu.next"),10,NamedTextColor.WHITE),Component.text("Nächste Seite"),dispatch,()->navigate.accept(page+1)));
         }
-        var body = new ArrayList<DialogBody>();
-        body.add(DialogBody.plainMessage(Component.text("\n"),300)); // Room below the parchment title.
-        body.add(DialogBody.plainMessage(Component.text(entries.isEmpty()?"Keine freigegebenen Server gefunden."
-            :"Seite "+(page+1)+" / "+MenuLayout.pages(entries.size())+" · "+entries.size()+" Server",NamedTextColor.GRAY),300));
-        ActionButton close = button(player,gui.button(settings.yaml().getString("menu.close","Schließen"),10,NamedTextColor.WHITE),
-            Component.text("Zurück zum Spiel"),dispatch,player::closeDialog);
-        Dialog dialog = Dialog.create(builder -> builder.empty()
-            .base(DialogBase.builder(gui.heading(settings.yaml().getString("menu.title","Serverauswahl"),
-                    Settings.color(settings.yaml().getString("menu.title-color","#3D2817"))))
-                .externalTitle(Component.text("Serverauswahl")).canCloseWithEscape(true).pause(false)
+        boolean info=options.pageInfo(entries.size());boolean count=options.flag("menu.show-server-count");
+        if(info||count){
+            align(buttons,columns);
+            String text=info?"Seite "+(page+1)+" / "+pages:"";
+            if(columns==1){if(count)text+=(text.isBlank()?"":" · ")+entries.size()+" Server";buttons.add(information(gui,text));}
+            else {buttons.add(information(gui,text));buttons.add(information(gui,count?entries.size()+" Server":""));}
+        }
+        var body=new ArrayList<DialogBody>();body.add(DialogBody.plainMessage(Component.text("\n"),300));
+        if(entries.isEmpty())body.add(DialogBody.plainMessage(Component.text("Keine freigegebenen Server gefunden.",NamedTextColor.GRAY),300));
+        ActionButton close=button(player,gui.button(options.text("menu.close"),10,NamedTextColor.WHITE),Component.text("Zurück zum Spiel"),dispatch,player::closeDialog);
+        player.showDialog(Dialog.create(builder->builder.empty()
+            .base(DialogBase.builder(gui.heading(options.text("menu.title"),Settings.color(options.text("menu.title-color"))))
+                .externalTitle(Component.text(options.text("menu.title"))).canCloseWithEscape(true).pause(false)
                 .afterAction(DialogBase.DialogAfterAction.CLOSE).body(body).build())
-            .type(buttons.isEmpty()?DialogType.notice(close):DialogType.multiAction(buttons,close,2)));
-        player.showDialog(dialog);
+            .type(buttons.isEmpty()?DialogType.notice(close):DialogType.multiAction(buttons,close,columns))));
     }
-    private static ActionButton button(Player owner, Component label, Component tooltip, Consumer<Runnable> dispatch, Runnable run) {
-        return ActionButton.create(label,tooltip,140,DialogAction.customClick((view,audience)-> {
-            if (audience instanceof Player actor && actor.getUniqueId().equals(owner.getUniqueId())) dispatch.accept(run);
+    private static void align(List<ActionButton> buttons,int columns){if(buttons.size()%columns!=0)buttons.add(ActionButton.create(Component.empty(),null,140,null));}
+    private static ActionButton information(GuiText gui,String text){return ActionButton.create(gui.information(text),null,140,null);}
+    static String statusText(MenuSnapshot.Status status){return switch(status){case ONLINE->"Online";case OFFLINE->"Nicht erreichbar";case SLEEPING->"Schläft";case UNKNOWN->"Wird geprüft";};}
+    private static ActionButton button(Player owner,Component label,Component tooltip,Consumer<Runnable> dispatch,Runnable run){
+        return ActionButton.create(label,tooltip,140,DialogAction.customClick((view,audience)->{
+            if(audience instanceof Player actor&&actor.getUniqueId().equals(owner.getUniqueId()))dispatch.accept(run);
         },ClickCallback.Options.builder().uses(1).lifetime(Duration.ofMinutes(10)).build()));
     }
 }

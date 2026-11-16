@@ -36,16 +36,27 @@ final class GuiText {
         return text+"..";
     }
     private Component decorated(String input,int size,int max,TextColor color,char sprite,int spriteWidth) {
+        return decorated(input,size,max,color,sprite,spriteWidth,Component.empty(),0);
+    }
+    private Component decorated(String input,int size,int max,TextColor color,char sprite,int spriteWidth,Component prefix,int prefixWidth) {
         String fitted=fit(input,size,max);
-        int offset=Math.floorDiv(width(fitted,size)-spriteWidth,2);
+        int offset=Math.floorDiv(width(fitted,size)+prefixWidth-spriteWidth,2);
         // Zero net sprite advance: the measured label determines its centering.
         return base().append(move(offset))
             .append(Component.text(String.valueOf(sprite)).font(Key.key("serverhub:gui")))
             .append(move(-offset-spriteWidth-1))
+            .append(prefix)
             .append(Component.text(fitted).font(Key.key("serverhub:label"+size)).color(color));
     }
     Component heading(String title,TextColor color) { return decorated(title,12,190,color,'\uE000',220); }
     Component button(String title,int size,TextColor color) { return decorated(title,size,126,color,'\uE001',140); }
+    Component information(String value){return decorated(value,8,126,TextColor.color(0x4D3620),'\uE002',140);}
+    Component server(String title,int size,TextColor color,de.serverhub.common.MenuSnapshot.Status status,boolean showStatus){
+        if(!showStatus)return button(title,size,color);
+        int rgb=switch(status){case ONLINE->0x62D86B;case OFFLINE->0xF05A56;case SLEEPING->0xFFD15C;case UNKNOWN->0xA7ADB4;};
+        Component dot=base().append(Component.text("\uE300").font(Key.key("serverhub:status")).color(TextColor.color(rgb))).append(move(2));
+        return decorated(title,size,117,color,'\uE001',140,dot,9);
+    }
     Component hint(int x,int y) {
         int horizontal=Math.clamp(x,94,512),vertical=Math.clamp(y,-32,32);
         return base().append(move(horizontal))

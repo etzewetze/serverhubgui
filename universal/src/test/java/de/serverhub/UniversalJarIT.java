@@ -36,7 +36,7 @@ class UniversalJarIT {
     }
     @Test void jarIncludesBothDescriptorsAndTheExactPackButNoServerApis()throws Exception{
         try(var archive=new JarFile(jar.toFile())){
-            for(String required:List.of("plugin.yml","velocity-plugin.json","config.yml","config.properties","font-widths.properties","serverhub-pack.zip","de/serverhub/common/Wire.class"))assertNotNull(archive.getEntry(required),required);
+            for(String required:List.of("plugin.yml","velocity-plugin.json","config.yml","config.properties","servers.yml","font-widths.properties","serverhub-pack.zip","de/serverhub/common/Wire.class"))assertNotNull(archive.getEntry(required),required);
             assertFalse(archive.stream().anyMatch(e->e.getName().startsWith("org/bukkit/")||e.getName().startsWith("com/velocitypowered/api/")));
             assertNotNull(archive.getEntry("de/serverhub/paper/DialogMenu.class"));
             assertNull(archive.getEntry("de/serverhub/paper/ServerHubPaper$Menu.class"));

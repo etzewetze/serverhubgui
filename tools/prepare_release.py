@@ -14,7 +14,7 @@ def main():
     pack=ROOT/"resource-pack-output/serverhub-pack.zip"
     with zipfile.ZipFile(jar)as z:
         names=z.namelist()
-        for required in ("plugin.yml","velocity-plugin.json","config.yml","config.properties","font-widths.properties","serverhub-pack.zip","de/serverhub/paper/ServerHubPaper.class","de/serverhub/velocity/ServerHubVelocity.class","de/serverhub/common/Wire.class"):
+        for required in ("plugin.yml","velocity-plugin.json","config.yml","config.properties","servers.yml","font-widths.properties","serverhub-pack.zip","de/serverhub/paper/ServerHubPaper.class","de/serverhub/velocity/ServerHubVelocity.class","de/serverhub/common/Wire.class"):
             if required not in names:raise SystemExit(f"Missing universal resource: {required}")
         if any(n.startswith(("org/bukkit/","com/velocitypowered/api/"))for n in names):raise SystemExit("Server APIs must not be bundled")
         if z.read("serverhub-pack.zip")!=pack.read_bytes():raise SystemExit("Bundled ZIP differs")
@@ -30,7 +30,7 @@ def main():
         tests.extend(c.attrib["classname"]+"."+c.attrib["name"]for c in suite.findall("testcase"))
     if not any("UniversalJarIT"in t for t in tests):raise SystemExit("Universal platform-isolation tests did not run")
     output=ROOT/"dist";output.mkdir(exist_ok=True)
-    for path in (jar,pack,ROOT/"resource-pack-output/serverhub-pack.sha1",ROOT/"README.md",ROOT/"preview/Menue-Vorschau.png"):
+    for path in (jar,pack,ROOT/"resource-pack-output/serverhub-pack.sha1",ROOT/"README.md",ROOT/"preview/Menue-Vorschau.png",ROOT/"velocity/src/main/resources/servers.yml"):
         shutil.copyfile(path,output/path.name)
     (output/"PRUEFUNG.txt").write_text(f"ServerHub {version}\n{len(tests)} Tests erfolgreich. Java 25; Paper 26.3; Velocity 4.2.0.\n\n"+"\n".join("OK "+t for t in tests)+"\n\nUniversal-JAR und eingebettete ZIP geprüft.\nKein vollständiger Spieltest mit verbundenem Minecraft-Client.\n")
     sums=[]
@@ -39,7 +39,7 @@ def main():
     (output/"SHA256SUMS.txt").write_text("\n".join(sums)+"\n")
     archive=output/f"ServerHub-{version}-Komplettpaket.zip"
     with zipfile.ZipFile(archive,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=9)as z:
-        for name in (jar.name,"serverhub-pack.zip","serverhub-pack.sha1","README.md","Menue-Vorschau.png","PRUEFUNG.txt","SHA256SUMS.txt"):
+        for name in (jar.name,"serverhub-pack.zip","serverhub-pack.sha1","README.md","Menue-Vorschau.png","servers.yml","PRUEFUNG.txt","SHA256SUMS.txt"):
             z.write(output/name,name)
     print(f"Release {version}: {len(tests)} tests; universal JAR {jar.stat().st_size} bytes; pack SHA-1 {hashlib.sha1(pack.read_bytes()).hexdigest()}")
 

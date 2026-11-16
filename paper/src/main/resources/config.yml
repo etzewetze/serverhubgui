@@ -1,6 +1,10 @@
 # Paper 26.3 / Java 25. Auf jedem Backend installieren.
 # Paketpflicht und Paket-Download werden zentral von ServerHub-Velocity verwaltet.
 interface-version: 2
+network:
+  # Erkennt vorhandenes Paper-/Spigot-Forwarding automatisch. Keine Backend-Anpassung nötig.
+  # proxy erzwingt Netzwerkbetrieb; standalone deaktiviert die Netzwerk-Auswahl.
+  mode: auto
 server-discovery:
   # Alle bei Velocity registrierten Server automatisch übernehmen.
   enabled: true

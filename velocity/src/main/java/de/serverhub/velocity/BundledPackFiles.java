@@ -8,7 +8,7 @@ import java.util.*;
 
 /** Upgrade only an exact old stock ZIP; custom resource packs are never replaced. */
 final class BundledPackFiles {
-    private static final Set<String> PREVIOUS = Set.of("12e55d121ceb687cae863306d377859d2849ef47");
+    private static final Set<String> PREVIOUS = Set.of("12e55d121ceb687cae863306d377859d2849ef47","adbdeb5174d7d3d36db58258abb4d1b1e11b6df2");
     private BundledPackFiles() {}
     static boolean upgrade(Path directory,byte[] bundled) throws IOException { return upgrade(directory,bundled,PREVIOUS); }
     static boolean upgrade(Path directory,byte[] bundled,Set<String> previous) throws IOException {

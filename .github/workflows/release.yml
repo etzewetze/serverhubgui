@@ -59,8 +59,9 @@ jobs:
             "dist/SHA256SUMS.txt" \
             "dist/PRUEFUNG.txt" \
             "dist/Menue-Vorschau.png" \
+            "dist/servers.yml" \
             --target "$GITHUB_SHA" \
-            --title "ServerHub $version – Native Dialoge und automatische Serverliste" \
+            --title "ServerHub $version – Zentrale Proxy-Konfiguration, Listen und Serverstatus" \
             --notes-file RELEASE-NOTES.md \
             --latest
       - name: Verify public release downloads

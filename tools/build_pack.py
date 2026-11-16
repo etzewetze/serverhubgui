@@ -35,9 +35,15 @@ def main():
         d.line((left+3,4,left+3,25),fill='#F5D59A',width=2)
         d.line((right-2,4,right-2,25),fill='#8E622F')
     scroll.save(gui/'scroll.png')
+    info=Image.new('RGBA',(140,20),'#D8BD89');di=ImageDraw.Draw(info)
+    di.rectangle((0,0,139,19),outline='#8C663A');di.line((1,1,138,1),fill='#EDD7A9')
+    info.save(gui/'info.png')
+    dot=Image.new('RGBA',(6,6),(255,255,255,0));ImageDraw.Draw(dot).ellipse((0,0,5,5),fill='white');dot.save(gui/'status.png')
+    save_json(A/'font/status.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/status.png','height':6,'ascent':7,'chars':['\uE300']}]})
     save_json(A/'font/gui.json',{'providers':[
         {'type':'bitmap','file':'serverhub:gui/scroll.png','height':30,'ascent':21,'chars':['\uE000']},
-        {'type':'bitmap','file':'serverhub:gui/button.png','height':20,'ascent':13,'chars':['\uE001']}
+        {'type':'bitmap','file':'serverhub:gui/button.png','height':20,'ascent':13,'chars':['\uE001']},
+        {'type':'bitmap','file':'serverhub:gui/info.png','height':20,'ascent':13,'chars':['\uE002']}
     ]})
     advances={}
     for bit in range(11):
@@ -81,7 +87,7 @@ def main():
     ]})
     save_json(A/'items/menu_icon.json',{'model':{'type':'minecraft:model','model':'serverhub:item/menu_icon'}})
     save_json(A/'models/item/menu_icon.json',{'parent':'minecraft:item/generated','textures':{'layer0':'serverhub:item/menu_icon'}})
-    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.2 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
+    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.3 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
     shutil.copyfile(source/'FONT-LICENSE.txt',OUT/'FONT-LICENSE.txt')
     package()
 

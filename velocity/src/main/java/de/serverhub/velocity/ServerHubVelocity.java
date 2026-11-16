@@ -31,6 +31,10 @@ public final class ServerHubVelocity {
     private final ConcurrentMap<UUID,Link> links=new ConcurrentHashMap<>();
     private volatile ProxySettings settings;
     private PackHost host;
+    private final CentralMenuConfig menus;
+    private final ServerStatusMonitor statusMonitor=new ServerStatusMonitor();
+    private ScheduledTask discoveryTask;
+    private boolean started;
     private final ExecutorService diagnostics=Executors.newVirtualThreadPerTaskExecutor();
     private record Link(String server,UUID nonce) {}
     private static final class Gate {
@@ -43,7 +47,7 @@ public final class ServerHubVelocity {
         void cancel(){if(timeout!=null)timeout.cancel();}
     }
     @Inject public ServerHubVelocity(ProxyServer proxy,Logger logger,@DataDirectory Path directory){
-        this.proxy=proxy;this.logger=logger;this.directory=directory.toAbsolutePath().normalize();
+        this.proxy=proxy;this.logger=logger;this.directory=directory.toAbsolutePath().normalize();this.menus=new CentralMenuConfig(this.directory);
     }
     @Subscribe public void initialize(ProxyInitializeEvent event){
         proxy.getChannelRegistrar().register(CHANNEL);
@@ -57,9 +61,9 @@ public final class ServerHubVelocity {
             copyDefault("serverhub-pack.zip");
             try(var bundled=getClass().getResourceAsStream("/serverhub-pack.zip")){
                 if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
-                if(BundledPackFiles.upgrade(directory,bundled.readAllBytes()))logger.info("Unverändertes 2.1-Paket gesichert und für das neue Dialogmenü aktualisiert.");
+                if(BundledPackFiles.upgrade(directory,bundled.readAllBytes()))logger.info("Vorheriges Standardpaket gesichert und für das neue Menü aktualisiert.");
             }
-            reload();
+            reload();started=true;scheduleDiscovery();
         }catch(Exception e){logger.error("ServerHub-Konfiguration fehlerhaft. Neue Spieler werden abgewiesen: {}",e.getMessage());}
     }
     private void copyDefault(String name) throws IOException {
@@ -72,11 +76,14 @@ public final class ServerHubVelocity {
         ProxySettings next=ProxySettings.read(directory),old=settings;
         if(old!=null&&(old.http()!=next.http()||old.port()!=next.port()||!old.bind().equals(next.bind())))
             throw new IOException("HTTP-Bind, Port oder Aktivierung geändert: Proxy vollständig neu starten");
+        var menu=menus.load(proxy.getAllServers().stream().map(s->s.getServerInfo().getName()).toList());
         if(host==null&&next.http())host=new PackHost(next.bind(),next.port(),next.pack());
         else if(host!=null)host.update(next.pack());
+        statusMonitor.configure(menu);
         settings=next;
         logger.info("ServerHub: Modus {}, SHA-1 {}, Paket-ID {}. Genau ein Angebot pro Netzwerkbeitritt; Reload fordert keine Pakete erneut an.",next.mode(),next.pack().sha1(),next.pack().id());
         retainHostedPacks();
+        if(started){scheduleDiscovery();for(Player player:proxy.getAllPlayers())sendMenu(player);}
     }
     private void retainHostedPacks(){if(host!=null)host.retain(gates.values().stream().map(g->g.sha).collect(java.util.stream.Collectors.toSet()));}
     private Component kickText(){var c=settings;return Component.text(c==null?"ServerHub ist noch nicht korrekt konfiguriert. Bitte informiere das Serverteam.":c.kick(),NamedTextColor.RED);}
@@ -142,7 +149,7 @@ public final class ServerHubVelocity {
             Wire.Packet packet=Wire.decode(event.getData());
             if(packet.type()==Wire.Type.HELLO){
                 links.put(p.getUniqueId(),new Link(backend.getServerInfo().getName(),packet.nonce()));
-                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);sendCatalog(p);return;
+                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);sendCatalog(p);sendMenu(p);return;
             }
             Link link=links.get(p.getUniqueId());
             if(link==null||!link.nonce().equals(packet.nonce())||!link.server().equals(backend.getServerInfo().getName()))return;
@@ -153,12 +160,33 @@ public final class ServerHubVelocity {
         Gate gate=gates.get(p.getUniqueId());
         send(p,Wire.Type.STATE,Boolean.toString(gate!=null&&gate.state.ready()));
     }
-    private void sendCatalog(Player p){
-        String[] servers=proxy.getAllServers().stream().map(s->s.getServerInfo().getName())
-            .filter(Wire::validTarget)
-            .filter(name->p.getPermissionValue("serverhub.connect."+name)!=Tristate.FALSE)
-            .distinct().sorted(String.CASE_INSENSITIVE_ORDER).limit(Wire.MAX_SERVERS).toArray(String[]::new);
-        send(p,Wire.Type.CATALOG,servers);
+    private List<CentralMenuConfig.Server> visibleServers(Player p){
+        var state=menus.current();if(state==null)return List.of();
+        Set<String> registered=proxy.getAllServers().stream().map(s->s.getServerInfo().getName().toLowerCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+        return state.servers().stream().filter(s->registered.contains(s.entry().target().toLowerCase(Locale.ROOT)))
+            .filter(s->!s.hidden())
+            .filter(s->p.getPermissionValue("serverhub.connect."+s.entry().target())!=Tristate.FALSE)
+            .filter(s->s.entry().permission().isBlank()||p.hasPermission(s.entry().permission())).limit(Wire.MAX_SERVERS).toList();
+    }
+    private void sendCatalog(Player p){send(p,Wire.Type.CATALOG,visibleServers(p).stream().map(s->s.entry().target()).toArray(String[]::new));}
+    private void sendMenu(Player p){
+        var state=menus.current();if(state==null)return;
+        var entries=visibleServers(p).stream().map(s->{var e=s.entry();return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),statusMonitor.status(s,state));}).toList();
+        try{send(p,Wire.Type.MENU,new MenuSnapshot(state.revision(),state.options(),entries).encode());}
+        catch(IllegalArgumentException e){logger.warn("Zentrale Menükonfiguration kann nicht übertragen werden: {}",e.getMessage());}
+    }
+    private void scheduleDiscovery(){
+        if(discoveryTask!=null)discoveryTask.cancel();
+        discoveryTask=proxy.getScheduler().buildTask(this,()->{
+            try{
+                var registered=proxy.getAllServers();
+                refreshRegistered();
+                if(menus.current().options().flag("status.enabled"))statusMonitor.refresh(registered,menus.current());
+            }catch(IOException e){logger.warn("Neue Server konnten nicht in servers.yml ergänzt werden: {}",e.getMessage());}
+        }).delay(Duration.ofSeconds(1)).repeat(Duration.ofSeconds(menus.current().options().number("status.ping-interval-seconds"))).schedule();
+    }
+    void refreshRegistered()throws IOException {
+        if(menus.discover(proxy.getAllServers().stream().map(s->s.getServerInfo().getName()).toList()))statusMonitor.configure(menus.current());
     }
     private void send(Player p,Wire.Type type,String... values){
         Link link=links.get(p.getUniqueId());if(link==null)return;
@@ -171,6 +199,7 @@ public final class ServerHubVelocity {
         synchronized(gate){long now=System.currentTimeMillis();if(now-gate.lastSwitch<700)return;gate.lastSwitch=now;}
         if(!target.matches("[A-Za-z0-9_.-]{1,64}")){send(p,Wire.Type.RESULT,"denied");return;}
         if(p.getPermissionValue("serverhub.connect."+target)==Tristate.FALSE){send(p,Wire.Type.RESULT,"denied");return;}
+        if(visibleServers(p).stream().noneMatch(s->s.entry().target().equalsIgnoreCase(target))){send(p,Wire.Type.RESULT,"denied");return;}
         var registered=proxy.getServer(target);
         if(registered.isEmpty()){send(p,Wire.Type.RESULT,"unavailable");return;}
         if(p.getCurrentServer().filter(c->c.getServer().equals(registered.get())).isPresent()){send(p,Wire.Type.RESULT,"already");return;}
@@ -181,6 +210,7 @@ public final class ServerHubVelocity {
     @Subscribe public void shutdown(ProxyShutdownEvent event){
         for(Gate g:gates.values())g.cancel();gates.clear();links.clear();
         if(host!=null)host.close();
+        if(discoveryTask!=null)discoveryTask.cancel();
         diagnostics.shutdownNow();
     }
     private final class AdminCommand implements SimpleCommand {
@@ -193,7 +223,7 @@ public final class ServerHubVelocity {
                 catch(Exception e){logger.warn("ServerHub-Reload abgelehnt: {}",e.getMessage());i.source().sendMessage(Component.text("Reload abgelehnt: "+e.getMessage(),NamedTextColor.RED));}
             }else if(i.arguments()[0].equalsIgnoreCase("status")){
                 var c=settings;
-                i.source().sendMessage(Component.text(c==null?"ServerHub-Konfiguration fehlerhaft.":"Paketpflicht aktiv; Modus "+c.mode()+"; SHA-1 "+c.pack().sha1()+"; Netzwerksitzungen "+gates.size()));
+                i.source().sendMessage(Component.text(c==null?"ServerHub-Konfiguration fehlerhaft.":"Paketpflicht aktiv; Modus "+c.mode()+"; SHA-1 "+c.pack().sha1()+"; Netzwerksitzungen "+gates.size()+"; zentrale Datei servers.yml; erfasste Ziele "+menus.current().servers().size()));
             }else if(i.arguments()[0].equalsIgnoreCase("packcheck")){
                 var c=settings;if(c==null){i.source().sendMessage(Component.text("ServerHub-Konfiguration fehlerhaft.",NamedTextColor.RED));return;}
                 String joiningHost=i.source() instanceof Player player?player.getVirtualHost().map(a->a.getHostString()).orElse(null):null;

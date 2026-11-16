@@ -12,7 +12,7 @@ final class PackProbe {
     private PackProbe(){}
     static Result check(String url,String expectedSha){
         try(var client=HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(10)).build()){
-            var response=client.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(20)).header("User-Agent","ServerHub/2.2.0 packcheck").build(),HttpResponse.BodyHandlers.ofInputStream());
+            var response=client.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(20)).header("User-Agent","ServerHub/2.3.0 packcheck").build(),HttpResponse.BodyHandlers.ofInputStream());
             try(var body=response.body()){
                 if(response.statusCode()!=200)return new Result(false,"HTTP "+response.statusCode()+" statt 200; Downloadadresse und Freigabe prüfen");
                 MessageDigest digest=MessageDigest.getInstance("SHA-1");

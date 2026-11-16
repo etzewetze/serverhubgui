@@ -9,7 +9,12 @@ import java.util.regex.Pattern;
 
 record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boolean icon, int slot,
                 boolean hint, int hintInterval, int handshakeTimeout, boolean automatic) {
-    record Entry(String key, String name, String target, String permission, TextColor color, int size, List<String> description) {}
+    record Entry(String key, String name, String target, String permission, TextColor color, int size, List<String> description,
+                 de.serverhub.common.MenuSnapshot.Status status) {
+        Entry(String key,String name,String target,String permission,TextColor color,int size,List<String> description){
+            this(key,name,target,permission,color,size,description,de.serverhub.common.MenuSnapshot.Status.UNKNOWN);
+        }
+    }
     private static final Pattern TARGET = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
     static Settings read(File file) throws Exception {
         var y = new YamlConfiguration(); y.load(file);
@@ -55,6 +60,18 @@ record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boole
     static int size(int n) {
         if (n != 8 && n != 10 && n != 12) throw new IllegalArgumentException("font-size muss 8, 10 oder 12 sein");
         return n;
+    }
+    static Settings fromNetwork(de.serverhub.common.MenuSnapshot snapshot){
+        var y=new YamlConfiguration();var o=snapshot.options();
+        de.serverhub.common.MenuOptions.DEFAULTS.keySet().forEach(key->y.set(key,o.typed(key)));
+        var entries=snapshot.entries().stream().map(e->new Entry(e.target(),e.name(),e.target(),e.permission(),color(e.color()),e.size(),e.description(),e.status())).toList();
+        return new Settings(y,entries,o.number("menu.font-size"),o.flag("hotbar-icon.enabled"),o.number("hotbar-icon.slot"),
+            o.flag("shift-f-hint.enabled"),o.number("shift-f-hint.interval-seconds"),o.number("proxy.handshake-timeout-seconds"),false);
+    }
+    de.serverhub.common.MenuOptions menuOptions(){
+        var values=new LinkedHashMap<String,String>();
+        de.serverhub.common.MenuOptions.DEFAULTS.keySet().forEach(key->{Object value=yaml.get(key);if(value!=null)values.put(key,String.valueOf(value));});
+        return new de.serverhub.common.MenuOptions(values);
     }
     static TextColor color(String s) {
         if (s == null || !s.matches("#[0-9A-Fa-f]{6}")) throw new IllegalArgumentException("Ungültige Hexfarbe: " + s);

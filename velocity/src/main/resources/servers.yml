@@ -1,0 +1,35 @@
+# ServerHub: diese eine Datei steuert das gesamte Netzwerk.
+# Registrierte Velocity-Server werden beim Start und regelmäßig ergänzt.
+# Farben und Schriftgröße können für jedes Ziel unter servers geändert werden.
+config-version: 1
+menu:
+  title: Serverauswahl
+  title-color: '#3D2817'
+  text-color: '#FFF4D6'
+  font-size: 12
+  layout: list
+  navigation: scroll
+  page-size: 6
+  show-page-info: true
+  show-server-count: false
+  single-page-info: false
+  previous: Zurück
+  next: Weiter
+  close: Schließen
+status:
+  enabled: true
+  ping-interval-seconds: 10
+  timeout-ms: 2000
+shift-f-hint:
+  enabled: true
+  interval-seconds: 1
+  x-offset: 106
+  y-offset: 0
+hotbar-icon:
+  enabled: false
+  slot: 8
+# Pro Ziel werden name, color, font-size, permission, description, hidden,
+# order, status-override und sleep-motd-contains automatisch angelegt.
+# status-override: auto|online|offline|sleeping
+# sleep-motd-contains: [] — eindeutige Meldung des eigenen Schlaf-Plugins eintragen.
+servers: {}
