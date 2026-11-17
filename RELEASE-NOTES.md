@@ -1,15 +1,17 @@
-# ServerHub 2.4.0
+# ServerHub 2.5.0
 
-- **Paper-Schlafstatus:** erkennt die tatsächliche Paper-Pause über `Server.isPaused()` und überträgt ein eindeutiges Ping-Signal. Ein pausierter, weiter pingbarer Server erscheint gelb. Null Spieler allein gilt weiterhin nicht als Schlaf.
-- **ServerNavigator ab 1.2.0:** GUI-Klicks nutzen dessen Warteschlange, Startverzögerung, Readiness und Wakeup. Kein konkurrierender Direktwechsel für verwaltete Ziele. Startphasen sind gelb; der ServerHub-Actionbar-Hinweis ruht beim Warten.
-- **Zentrierter Titel:** Rolle aus skalierbaren PNG-Teilen, Breite passend zur Schrift und Textlänge; einstellbarer Rand und maximale Breite.
-- **Darstellung:** feste linke Statuspunktposition, zuschaltbarer Textschatten, Holzbuttons ohne helle Eckverzierungen. Schließen, Weiter und Zurück haben eigene Breite, Schriftgröße, Schriftart, Textfarbe und Hintergrundtönung.
-- **Schriftwahl:** Sans, Serif und Mono in 8/10/12/14/16 Pixeln. Eigene TTF/OTF per direktem HTTPS-Link oder lokaler Datei; der Proxy erzeugt Schriftgrafiken und verteilt passende Pixelbreiten an Paper.
-- **Bearbeitbares Pack:** `plugins/serverhub-velocity/pack/` enthält die Quelldateien. Reload erstellt ZIP, Hash und Paket-ID samt Sicherung der vorherigen Ausgabe. Unveränderte Standardbytes bleiben exakt zum GitHub-Download identisch.
-- **Proxy-Vorrang:** im Netzwerk nur am Proxy bearbeiten; eigenständiges Paper verwendet den lokalen Packordner und `/extramenu reload`.
+- **Direkte Schlafmeldungen:** Paper meldet den gemessenen Pausenzustand über einen eigenen HTTP-Statuskanal an den Proxy. Funktioniert auch ohne Spieler auf dem Backend; eine frische Schlafmeldung überschreibt einen weiter grünen oder fehlgeschlagenen Ping.
+- **Vollautomatische Einrichtung:** Status-Pings des Proxys übermitteln die Daten für den Berichtskanal. Kein manuelles Einstellen oder vorheriges Betreten jedes Backends. Zugangsdaten sind pro Ziel gebunden und werden für Neustarts gespeichert.
+- **Schnellere Aktualisierung:** Standardprüfung alle 1 Sekunde, Pinglimit 1000 ms; Änderungen werden direkt an die Menü-Backends verteilt. Geöffnete Menüs erneuern sich bei tatsächlichen Änderungen. `status.refresh-open-menu: false` verhindert eine mögliche Rücksetzung der nativen Scrollposition.
+- **Sichtbare Intervalle:** `plugins/serverhub-velocity/servers.yml`, Abschnitt `status` am Dateianfang. Die früheren Standardwerte werden mit Sicherung der alten Datei aktualisiert; eigene abweichende Intervalle bleiben erhalten.
+- **Statusdiagnose:** `/serverhubproxy status` zeigt pro Ziel Backend-Meldung, deren Alter und das Ping-Ergebnis. Veraltete und verspätete Meldungen können neuere Zustände nicht überschreiben.
+- **Feste Überschrift:** „Serverauswahl“ steht mit ihrer textabhängig breiten Rolle im festen Dialogkopf und scrollt nicht mit. Der Platz für Minecrafts Warnsymbol wird ausgeglichen.
+- **Minecraft-Buttons:** standardmäßig native Buttons einschließlich Hover-/Fokusdarstellung. Schriften, Textfarben und Breiten bleiben einstellbar. Die optionale alte Holzoptik ist unter `menu.button-style: wood` verfügbar.
 
-**Update:** ServerHub auf Proxy und allen Paper-Backends gemeinsam ersetzen und neu starten. Für die Navigator-Anbindung zusätzlich [ServerNavigator 1.2.0](https://github.com/etzewetze/ServerNavigator/releases/tag/v1.2.0) auf dem Proxy installieren; dieses benötigt Velocity 4.3.0. Die Menüübertragung ist nicht mit ServerHub 2.3 mischbar. Vorhandene Einträge bleiben erhalten, neue Optionen werden in `servers.yml` ergänzt.
+**Update:** dieselbe `ServerHub-2.5.0.jar` auf Proxy und allen Paper-Backends installieren und neu starten. ServerNavigator 1.2.0 bleibt kompatibel und muss für dieses Update nicht geändert werden. Vorherige ServerHub-Versionen nicht im selben Netzwerk mischen. Java 25, Paper 26.3; für ServerNavigator weiterhin Velocity 4.3.0.
 
-**Eigene Texturen/Schriften:** Der neue Standard `pack.mode=auto` verwendet für eigene Pack-Inhalte den eingebauten HTTP-Server. Dafür muss der Pack-Port (Standard 8124/TCP) für Spieler erreichbar sein, oder eine passende externe ZIP-Adresse eingerichtet werden. Nach Pack-Änderungen neu verbinden; Backend-Wechsel und Reload bieten das Paket weiterhin nicht erneut an. Änderungen ausschließlich im entpackten `pack/` vornehmen; die ZIP ist generierte Ausgabe.
+**Statuskanal:** TCP **8125** muss intern vom Backend zum Proxy erreichbar sein. Bei Docker/NAT den Port am Proxy weiterleiten und gegebenenfalls `status.report-host` zentral setzen. Bei einem ausdrücklich gesetzten Host diesen nach einer Änderung einmal durch einen Backend-Beitritt über den Proxy bestätigen; bei `auto` ist das nicht nötig. Der Statusport ist unabhängig vom Pack-Port 8124 und muss nicht für Spieler öffentlich erreichbar sein. Bei fehlender Verbindung bleibt der Ping-Fallback aktiv. Native Paper-Pause ist messbar; ein externer Hoster, der den ganzen Java-Prozess stoppt, benötigt ein eigenes Schlafsignal bzw. eine passende Anbieterintegration.
 
-**Prüfung:** automatisierte Tests, Universal-JAR-Plattformprüfung und öffentliche Release-Downloads samt Prüfsummen. Kein vollständiger Ingame-Test. Andere Schlaf-Proxys benötigen weiterhin ein eindeutiges eigenes Schlafsignal oder eine Statusvorgabe. Details und Konfigurationsbeispiele stehen in der README.
+**Gelbes Warnsymbol:** wird vom Minecraft-Client bei benutzerdefinierten Dialogen angezeigt. Es ist keine Plugin-Fehlermeldung und hat in der normalen Dialog-API keinen Ausschalter.
+
+Automatisierte Build-, Transport-, Status- und Paketprüfungen; öffentliche Downloads mit Prüfsummen kontrolliert. Kein vollständiger Ingame-Test mit verbundenem Minecraft-Client.

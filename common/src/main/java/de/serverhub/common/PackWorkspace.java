@@ -25,9 +25,13 @@ public final class PackWorkspace {
         Files.createDirectories(directory);Path root=directory.resolve("pack");
         if(Files.isSymbolicLink(root))throw new IOException("pack/ darf kein symbolischer Link sein");
         Map<String,byte[]> stock=unpack(bundled);boolean fresh=!Files.exists(root);Files.createDirectories(root);
-        // New assets are added on upgrade. Existing editable files are never overwritten.
+        // Update only byte-for-byte factory files. Preserve every manually edited file.
+        Path baselineFile=directory.resolve("pack-bundled-files.properties");var baseline=new Properties();
+        if(Files.exists(baselineFile))try(var input=Files.newInputStream(baselineFile)){baseline.load(input);}
+        else try(var input=PackWorkspace.class.getResourceAsStream("/pack-v2.4-hashes.properties")){if(input!=null)baseline.load(input);}
         for(var entry:stock.entrySet()){
             Path file=safe(root,entry.getKey());if(!Files.exists(file)){Files.createDirectories(file.getParent());Files.write(file,entry.getValue(),StandardOpenOption.CREATE_NEW);}
+            else if(baseline.getProperty(entry.getKey())!=null&&Files.size(file)<=MAX_PACK&&sha256(Files.readAllBytes(file)).equals(baseline.getProperty(entry.getKey()))&&!Arrays.equals(Files.readAllBytes(file),entry.getValue()))atomic(file,entry.getValue());
         }
         String url=settings.text("font.url");
         Path custom=safe(root,"assets/serverhub/fonts/custom.ttf"),urlCache=directory.resolve("font-url.txt");
@@ -56,7 +60,7 @@ public final class PackWorkspace {
             byte[] old=Files.readAllBytes(archive);Path backup=directory.resolve("serverhub-pack-backup-"+sha256(old).substring(0,16)+".zip");
             if(!Files.exists(backup))Files.write(backup,old,StandardOpenOption.CREATE_NEW);
         }
-        atomic(archive,zip);if(cacheChanged)atomic(cacheFile,properties(cache));
+        atomic(archive,zip);if(cacheChanged)atomic(cacheFile,properties(cache));var nextBaseline=new Properties();stock.forEach((name,bytes)->nextBaseline.setProperty(name,sha256(bytes)));atomic(baselineFile,properties(nextBaseline));
         return PackData.read(archive);
     }
     public static boolean bundled(PackData pack,byte[] stock){return Arrays.equals(pack.bytes(),stock);}

@@ -54,4 +54,13 @@ class BackendStatusReceiverTest {
         try(var receiver=new BackendStatusReceiver(directory,"127.0.0.1",0,name->true,(name,value)->{})){token=receiver.token("lobby");}
         try(var receiver=new BackendStatusReceiver(directory,"127.0.0.1",0,name->true,(name,value)->{})){assertEquals(token,receiver.token("LOBBY"));assertNotEquals(token,receiver.token("survival"));}
     }
+    @Test void explicitCallbackHostsNeedThePrivateProxyChannelAndCannotBeChangedByAPing()throws Exception {
+        var frames=new LinkedBlockingQueue<BackendStatus>();
+        try(var receiver=new BackendStatusReceiver(directory.resolve("proxy"),"127.0.0.1",0,name->true,(name,value)->frames.add(value));var reporter=new BackendReporter(directory.resolve("backend"),message->{})){
+            var options=new MenuOptions(Map.of("status.report-host","127.0.0.1"));var link=receiver.link("lobby",options);reporter.sample(true);
+            assertFalse(reporter.configure(link,"127.0.0.1"));
+            reporter.configureTrusted(link,"127.0.0.1");assertFalse(reporter.configure(receiver.link("other",MenuOptions.defaults()),"127.0.0.1"));
+            assertNotNull(next(frames,true));
+        }
+    }
 }

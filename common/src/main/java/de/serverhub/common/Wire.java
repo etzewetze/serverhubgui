@@ -9,7 +9,7 @@ public final class Wire {
     public static final int MAX_BYTES = 32700;
     public static final int MAX_SERVERS = 256;
     private static final int MAGIC = 0x53483201;
-    public enum Type { HELLO, STATE, CONNECT, RESULT, CATALOG, MENU }
+    public enum Type { HELLO, STATE, CONNECT, RESULT, CATALOG, MENU, REPORT_LINK }
     public record Packet(Type type, UUID nonce, List<String> values) {
         public Packet { values = List.copyOf(values); }
         public String value(int index) { return values.get(index); }

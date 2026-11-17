@@ -11,7 +11,7 @@ import java.util.function.Consumer;
 
 /** Sends wall-clock heartbeats independently of players and Minecraft plugin-message transport. */
 public final class BackendReporter implements AutoCloseable {
-    private record Route(BackendReportLink link,String peer){}
+    private record Route(BackendReportLink link,String peer,boolean trusted){}
     private record Sample(boolean paused,long time){}
     private final UUID instance=UUID.randomUUID();
     private final Path cache;
@@ -26,16 +26,22 @@ public final class BackendReporter implements AutoCloseable {
     public BackendReporter(Path directory,Consumer<String> log)throws IOException {
         this.cache=directory.resolve("proxy-status.properties");this.log=log;
         if(Files.isRegularFile(cache)&&Files.size(cache)<2048){
-            try{var p=new Properties();try(var input=Files.newInputStream(cache)){p.load(input);}var link=BackendReportLink.fromVirtualHost(p.getProperty("link"));if(link.isPresent()){String peer=p.getProperty("peer");link.get().endpoint(peer);route=saved=new Route(link.get(),peer);}}catch(Exception e){log.accept("Gespeicherter Statuskanal wird nach dem nächsten Proxy-Ping erneuert.");}
+            try{var p=new Properties();try(var input=Files.newInputStream(cache)){p.load(input);}var link=BackendReportLink.fromVirtualHost(p.getProperty("link"));if(link.isPresent()){String peer=p.getProperty("peer");boolean trusted=Boolean.parseBoolean(p.getProperty("trusted","false"));if(link.get().host().equals("auto")||trusted){link.get().endpoint(peer);route=saved=new Route(link.get(),peer,trusted);}}}catch(Exception e){log.accept("Gespeicherter Statuskanal wird nach dem nächsten Proxy-Ping erneuert.");}
         }
         executor.scheduleWithFixedDelay(this::send,100,200,TimeUnit.MILLISECONDS);
     }
     /** Called on Paper's main-thread heartbeat, which also runs during native empty-server pause. */
     public void sample(boolean paused){sample=new Sample(paused,System.currentTimeMillis());}
-    public void configure(BackendReportLink link,String peer){
+    public boolean configure(BackendReportLink link,String peer){
         // Auto addresses always refer to the actual peer of the status connection, never an arbitrary packet address.
-        if(peer==null||peer.isBlank()||peer.length()>64)return;
-        try{link.endpoint(peer);route=new Route(link,peer);}catch(IllegalArgumentException ignored){}
+        if(!link.host().equals("auto")||route!=null&&route.trusted)return false;
+        return configure(link,peer,false);
+    }
+    /** An explicit host may only arrive through the proxy's nonce-bound private channel. */
+    public void configureTrusted(BackendReportLink link,String peer){configure(link,peer,true);}
+    private boolean configure(BackendReportLink link,String peer,boolean trusted){
+        if(peer==null||peer.isBlank()||peer.length()>64)return false;
+        try{link.endpoint(peer);route=new Route(link,peer,trusted);return true;}catch(IllegalArgumentException ignored){return false;}
     }
     private void send(){
         Route destination=route;Sample value=sample;long now=System.currentTimeMillis();
@@ -43,7 +49,7 @@ public final class BackendReporter implements AutoCloseable {
         if(now-lastSend<destination.link.intervalMillis()&&saved!=null&&destination.equals(saved)&&sent!=null&&sent.paused==value.paused)return;
         lastSend=now;sent=value;
         try{
-            if(!destination.equals(saved)){Files.createDirectories(cache.getParent());var p=new Properties();p.setProperty("link",destination.link.virtualHost());p.setProperty("peer",destination.peer);
+            if(!destination.equals(saved)){Files.createDirectories(cache.getParent());var p=new Properties();p.setProperty("link",destination.link.virtualHost());p.setProperty("peer",destination.peer);p.setProperty("trusted",Boolean.toString(destination.trusted));
                 Path temporary=Files.createTempFile(cache.getParent(),"status-",".tmp");try{try(var out=Files.newOutputStream(temporary)){p.store(out,"Automatisch vom Proxy erkannt; keine manuellen Backend-Einstellungen nötig");}try{Files.move(temporary,cache,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}catch(AtomicMoveNotSupportedException e){Files.move(temporary,cache,StandardCopyOption.REPLACE_EXISTING);}}finally{Files.deleteIfExists(temporary);}saved=destination;
             }
             var report=new BackendStatus(instance,++sequence,value.paused);

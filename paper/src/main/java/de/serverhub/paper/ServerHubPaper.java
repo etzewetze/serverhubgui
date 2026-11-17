@@ -134,6 +134,8 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
                 s.revision=snapshot.revision();s.central=next;s.catalog=snapshot.entries().stream().map(MenuSnapshot.Entry::target).toList();s.discovered=true;
                 applyIcon(p);
                 if(redraw)open(p,s.menuPage);
+            } else if(packet.type()==Wire.Type.REPORT_LINK&&backendReporter!=null){
+                var raw=p.spigot().getRawAddress();if(raw!=null)BackendReportLink.fromVirtualHost(packet.value(0)).ifPresent(link->backendReporter.configureTrusted(link,raw.getHostString()));
             } else if (packet.type() == Wire.Type.CATALOG) {
                 s.catalog = packet.values(); s.discovered = true;
             } else if (packet.type() == Wire.Type.RESULT) {

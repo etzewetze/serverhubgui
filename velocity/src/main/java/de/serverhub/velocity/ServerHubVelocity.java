@@ -93,7 +93,7 @@ public final class ServerHubVelocity {
                 catch(IOException e){logger.warn("Backend-Statuskanal konnte nicht gestartet werden: {}. Status fällt auf Pings zurück; status.report-port in servers.yml prüfen.",e.getMessage());}
             }
             logger.info("ServerHub: Paketmodus {}, SHA-1 {}. pack/ ist die bearbeitbare Quelle; neue Paketversionen gelten für neue Netzwerkverbindungen.",next.mode(),next.pack().sha1());
-            if(started){scheduleDiscovery();for(Player player:proxy.getAllPlayers())sendMenu(player);}
+            if(started){scheduleDiscovery();for(Player player:proxy.getAllPlayers()){sendMenu(player);sendReportLink(player);}}
         }
     }
     private void retainHostedPacks(){if(host!=null)host.retain(gates.values().stream().map(g->g.sha).collect(java.util.stream.Collectors.toSet()));}
@@ -160,7 +160,7 @@ public final class ServerHubVelocity {
             Wire.Packet packet=Wire.decode(event.getData());
             if(packet.type()==Wire.Type.HELLO){
                 links.put(p.getUniqueId(),new Link(backend.getServerInfo().getName(),packet.nonce()));
-                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);sendCatalog(p);sendMenu(p,true);return;
+                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);sendCatalog(p);sendMenu(p,true);sendReportLink(p);return;
             }
             Link link=links.get(p.getUniqueId());
             if(link==null||!link.nonce().equals(packet.nonce())||!link.server().equals(backend.getServerInfo().getName()))return;
@@ -180,6 +180,10 @@ public final class ServerHubVelocity {
             .filter(s->s.entry().permission().isBlank()||p.hasPermission(s.entry().permission())).limit(Wire.MAX_SERVERS).toList();
     }
     private void sendCatalog(Player p){send(p,Wire.Type.CATALOG,visibleServers(p).stream().map(s->s.entry().target()).toArray(String[]::new));}
+    private void sendReportLink(Player player){
+        var state=menus.current();var receiver=statusReceiver;var link=links.get(player.getUniqueId());
+        if(state!=null&&receiver!=null&&link!=null&&state.options().flag("status.backend-reports")&&!state.options().text("status.report-host").equals("auto"))send(player,Wire.Type.REPORT_LINK,receiver.link(link.server(),state.options()).virtualHost());
+    }
     private void sendMenu(Player p){
         sendMenu(p,false);
     }

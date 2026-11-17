@@ -18,6 +18,16 @@ class PackWorkspaceTest {
         assertTrue(Files.isRegularFile(directory.resolve("pack/assets/serverhub/textures/gui/button_mid.png")));
         assertFalse(Files.exists(directory.resolve("pack-font-cache.properties.tmp")));
     }
+    @Test void anUntouchedTwoFourFolderUpgradesToTheExactNewGithubPack()throws Exception {
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");String factory=Files.readString(metadata);Files.writeString(metadata,factory.replace("ServerHub 2.5","ServerHub 2.4"));
+        Files.delete(directory.resolve("pack-bundled-files.properties"));
+        var upgraded=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());assertArrayEquals(stock,upgraded.bytes());assertEquals(factory,Files.readString(metadata));
+    }
+    @Test void factoryUpgradesKeepCustomTexturesAndChooseTheEditableDeliveryMode()throws Exception {
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");Files.writeString(metadata,Files.readString(metadata).replace("ServerHub 2.5","ServerHub 2.4"));Files.delete(directory.resolve("pack-bundled-files.properties"));
+        Path button=directory.resolve("pack/assets/serverhub/textures/gui/button_mid.png");var texture=javax.imageio.ImageIO.read(button.toFile());texture.setRGB(0,5,0xFF123456);javax.imageio.ImageIO.write(texture,"png",button.toFile());byte[] custom=Files.readAllBytes(button);
+        Files.writeString(directory.resolve("config.properties"),"pack.mode=auto\n");var upgraded=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());assertArrayEquals(custom,Files.readAllBytes(button));assertFalse(PackWorkspace.bundled(upgraded,stock));assertTrue(ProxySettings.read(directory).http());
+    }
     @Test void editsArePackagedDeterministicallyAndThePreviousZipIsBackedUp()throws Exception {
         byte[] stock=stock();var before=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());
         Files.writeString(directory.resolve("pack/MEINE-AENDERUNG.txt"),"Eigene Texturen");

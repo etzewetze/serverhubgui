@@ -181,7 +181,7 @@ class ProxyPackLifecycleTest {
         when(lobby.ping(any(PingOptions.class))).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(ping));when(target.ping(any(PingOptions.class))).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(ping));
         when(proxy.getAllPlayers()).thenReturn(List.of(player));
         var updates=new java.util.concurrent.LinkedBlockingQueue<de.serverhub.common.MenuSnapshot>();
-        doAnswer(call->{var packet=Wire.decode(call.getArgument(1,byte[].class));if(packet.type()==Wire.Type.MENU)updates.add(de.serverhub.common.MenuSnapshot.decode(packet.values()));return true;}).when(connection).sendPluginMessage(any(),any());
+        doAnswer(call->{var packet=Wire.decode(call.getArgument(1,byte[].class));if(packet.type()==Wire.Type.MENU)updates.add(de.serverhub.common.MenuSnapshot.decode(packet.values()));return true;}).when(connection).sendPluginMessage(any(),any(byte[].class));
         plugin.refreshStatuses();var options=ArgumentCaptor.forClass(PingOptions.class);verify(target).ping(options.capture());
         var bootstrap=de.serverhub.common.BackendReportLink.fromVirtualHost(options.getValue().getVirtualHost()).orElseThrow();assertEquals("survival",bootstrap.target());
         try(var reporter=new de.serverhub.common.BackendReporter(directory.resolve("backend-with-no-players"),message->{})){
