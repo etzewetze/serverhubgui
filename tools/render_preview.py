@@ -41,27 +41,31 @@ def main():
                 value=rng.randrange(111,132);d.point((xx,yy),fill=(value,value,value,255))
         d.rectangle((0,0,width-1,19),outline='#161616');d.line((1,1,width-2,1),fill='#C6C6C6');d.line((1,1,1,18),fill='#ACACAC');d.line((1,18,width-2,18),fill='#4D4D4D');d.line((width-2,2,width-2,18),fill='#505050')
         canvas.alpha_composite(image,(x,y))
-    canvas=Image.new('RGBA' ,(640,350),'#20242A');draw=ImageDraw.Draw(canvas)
+    canvas=Image.new('RGBA' ,(900,390),'#20242A');draw=ImageDraw.Draw(canvas)
     caption=ImageFont.truetype(str(ROOT/'art-source/ServerHubSans-Bold.ttf'),9)
     for col,(family,title)in enumerate((('sans','Sans'),('serif','Serif'),('mono','Mono'))):
-        center=110+210*col
+        center=145+300*col
         draw.text((center,8),title,font=caption,anchor='mt',fill='#D9DDE4')
-        text='Serverauswahl';roll=max(48,measure(text,family,12)+24)
-        background(canvas,'scroll',roll,center-roll//2,30);label(canvas,text,family,12,center,41,'#3D2817')
-        warning_x=center+roll//2+4;draw.rectangle((warning_x,35,warning_x+19,54),fill='#707070',outline='#222222');draw.polygon(((warning_x+10,38),(warning_x+3,50),(warning_x+17,50)),fill='#F6D957');draw.line((warning_x+10,42,warning_x+10,46),fill='#333333');draw.point((warning_x+10,48),fill='#333333')
-        for i,(name,color,state)in enumerate([('Lobby','#A8E091','#62D86B'),('Survival','#F2C06D','#FFD15C'),('Creative','#9FDCF0','#F05A56'),('Event','#FFF4D6','#62D86B'),('Kalle','#F0A79A','#A7ADB4')]):
-            x=center-70;y=82+i*25
-            native_button(canvas,140,x,y);label(canvas,fit(name,family,12,100),family,12,center,y+6,color)
+        text='Serverauswahl';roll=max(48,measure(text,family,12)+96)
+        background(canvas,'scroll',roll,center-roll//2,28);label(canvas,text,family,12,center,43,'#3D2817')
+        warning_x=center+roll//2+4;draw.rectangle((warning_x,34,warning_x+19,53),fill='#707070',outline='#222222');draw.polygon(((warning_x+10,38),(warning_x+3,50),(warning_x+17,50)),fill='#F6D957');draw.line((warning_x+10,42,warning_x+10,46),fill='#333333');draw.point((warning_x+10,48),fill='#333333')
+        for i,(name,color,state)in enumerate([('Lobby','#A8E091','#62D86B'),('Survival','#FFF4D6','#FFD15C'),('Creative','#9FDCF0','#F05A56'),('Challenges','#FFF4D6','#62D86B'),('Ynn','#FFF4D6','#A7ADB4'),('Test','#F0A79A','#62D86B')]):
+            x=center-112;y=90+i*25
+            native_button(canvas,224,x,y)
+            if family=='mono' and name=='Challenges':
+                canvas.alpha_composite(Image.open(A/'textures/backgrounds/generated/blue_round.png').convert('RGBA').resize((224,20)),(x,y))
+            label(canvas,fit(name,family,12,168),family,12,center,y+6,color)
+            if name=='Survival':canvas.alpha_composite(Image.open(A/'textures/gui/news.png').convert('RGBA'),(x+208,y+5))
             draw.ellipse((x+10,y+7,x+15,y+12),fill=state)
-        native_button(canvas,140,center-70,226);label(canvas,'Schließen',family,10,center,232,'#FFF4D6')
+        native_button(canvas,140,center-70,262);label(canvas,'Schließen',family,10,center,268,'#FFF4D6')
     # Schematic hotbar documents intended anchoring, not an actual client HUD.
     for col in range(9):
-        x=230+col*20
-        draw.rectangle((x,290,x+19,311),fill='#4E4E4E',outline='#AAA7A0')
-    canvas.alpha_composite(Image.open(A/'textures/item/menu_icon.png').convert('RGBA'),(426,282))
-    draw.text((320,330),'Designreferenz · beispielhafte Statuswerte · kein Ingame-Screenshot',font=ImageFont.truetype(str(ROOT/'art-source/ServerHubSans-Bold.ttf'),8),anchor='mt',fill='#B7BFCA')
+        x=360+col*20
+        draw.rectangle((x,316,x+19,337),fill='#4E4E4E',outline='#AAA7A0')
+    canvas.alpha_composite(Image.open(A/'textures/item/menu_icon.png').convert('RGBA'),(556,308))
+    draw.text((450,365),'Designreferenz · beispielhafte Statuswerte · kein Ingame-Screenshot',font=ImageFont.truetype(str(ROOT/'art-source/ServerHubSans-Bold.ttf'),8),anchor='mt',fill='#B7BFCA')
     output=ROOT/'preview';output.mkdir(exist_ok=True)
-    canvas.resize((1920,1050),Image.Resampling.NEAREST).save(output/'Menue-Vorschau.png')
+    canvas.resize((1800,780),Image.Resampling.NEAREST).save(output/'Menue-Vorschau.png')
     print('Designreferenz:',output/'Menue-Vorschau.png')
 
 if __name__=='__main__':main()

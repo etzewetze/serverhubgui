@@ -37,7 +37,7 @@ class GuiTextTest {
     @Test void everyStatusDotUsesOneLeftEdgeRegardlessOfNameOrFontSize()throws Exception {
         var gui=new GuiText();var options=MenuOptions.defaults();
         for(var entry:List.of(new Settings.Entry("a","Lobby","a","",NamedTextColor.WHITE,8,List.of(),MenuSnapshot.Status.ONLINE,"serif"),new Settings.Entry("b","Überlebenswelt","b","",NamedTextColor.WHITE,16,List.of(),MenuSnapshot.Status.STARTING,"mono"))){
-            var runs=runs(gui.server(entry,options));Run dot=runs.stream().filter(r->r.font().equals("serverhub:status")).findFirst().orElseThrow();assertEquals(6,dot.x());assertEquals(172,finalWidth(runs));
+            var runs=runs(gui.server(entry,options));Run dot=runs.stream().filter(r->r.font().equals("serverhub:status")).findFirst().orElseThrow();assertEquals(6,dot.x());assertEquals(gui.preferredWidth(entry,options)-8,finalWidth(runs));
             assertTrue(runs.stream().anyMatch(r->r.font().endsWith("_shadow")));
         }
     }
@@ -54,5 +54,12 @@ class GuiTextTest {
         var options=MenuOptions.defaults();var gui=new GuiText();var normal=runs(gui.heading(options.text("menu.title"),NamedTextColor.BLACK,options));var fixed=runs(gui.fixedHeading(options));
         Run ordinary=normal.stream().filter(r->r.font().equals("serverhub:gui")).findFirst().orElseThrow();Run pinned=fixed.stream().filter(r->r.font().equals("serverhub:gui")).findFirst().orElseThrow();
         assertEquals(24,pinned.x()-ordinary.x());assertEquals(finalWidth(normal)+24,finalWidth(fixed));
+    }
+    @Test void automaticWidthKeepsChallengesAndOptionalCountsAndNewsInsideTheButton()throws Exception {
+        var gui=new GuiText();var options=new MenuOptions(Map.of("prefix.enabled","true"));
+        var style=ServerStyle.defaults().live(12,80,"12 Spieler",true);
+        var entry=new Settings.Entry("challenges","Challenges","challenges","",NamedTextColor.WHITE,12,List.of(),MenuSnapshot.Status.SLEEPING,"mono",style);
+        int width=gui.preferredWidth(entry,options);assertTrue(width>=fonts().width("12 Spieler Challenges","mono",12)+56);
+        assertEquals(240,gui.preferredWidth(new Settings.Entry("c","Challenges","c","",NamedTextColor.WHITE,12,List.of(),MenuSnapshot.Status.ONLINE,"sans",new ServerStyle(240,"","#FFFFFF",false,0,80,"",true,"",false)),options));
     }
 }

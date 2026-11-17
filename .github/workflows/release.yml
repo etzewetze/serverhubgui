@@ -60,8 +60,9 @@ jobs:
             "dist/PRUEFUNG.txt" \
             "dist/Menue-Vorschau.png" \
             "dist/servers.yml" \
+            "dist/amp.yml" \
             --target "$GITHUB_SHA" \
-            --title "ServerHub $version – Direkte Backend-Statusmeldungen und feste Minecraft-Dialoge" \
+            --title "ServerHub $version – AMP-Schlafstatus, eigene Schriften und Server-News" \
             --notes-file RELEASE-NOTES.md \
             --latest
       - name: Verify public release downloads

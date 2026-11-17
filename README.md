@@ -1,212 +1,221 @@
-# ServerHub GUI 2.5.0
+# ServerHub GUI 2.5.1
 
-Zentrale Serverauswahl für Velocity mit festem Dialogkopf, Minecraft-Standardbuttons und direkten Schlafmeldungen der Backends. Statusprüfung standardmäßig jede Sekunde, auch ohne Spieler auf dem Zielserver. Eigene Schriften, ServerNavigator und der bearbeitbare Packordner bleiben erhalten.
+Zentrale Serverauswahl für Velocity: AMP-Schlafstatus, mehrere eigene Schriften, automatisch passende Buttonbreiten, eigene Button-PNGs und Server-Neuigkeiten. Keine Client-Mod nötig; der feste Dialogkopf und die native Scrollliste öffnen kein Truhen- oder Spielerinventar.
 
-[ServerHub-JAR](https://github.com/etzewetze/serverhubgui/releases/download/v2.5.0/ServerHub-2.5.0.jar) · [Release / Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.5.0) · [ServerNavigator ab 1.2.0](https://github.com/etzewetze/ServerNavigator/releases/tag/v1.2.0)
+[ServerHub-2.5.1.jar](https://github.com/etzewetze/serverhubgui/releases/download/v2.5.1/ServerHub-2.5.1.jar) · [Release und Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.5.1) · [ServerNavigator ab 1.2.0](https://github.com/etzewetze/ServerNavigator/releases/tag/v1.2.0)
 
-**Minecraft Java / Paper 26.3, Java 25, Velocity 4.2.0 oder 4.3.0.** Dieselbe ServerHub-JAR auf Proxy und Backends. ServerNavigator 1.2.0 benötigt Velocity 4.3.0. Kein Client-Mod erforderlich.
+**Minecraft Java / Paper 26.3, Java 25, Velocity 4.2.0 oder 4.3.0.** ServerNavigator 1.2.0 benötigt Velocity 4.3.0. Dieselbe ServerHub-JAR auf Proxy und allen Backends installieren.
 
-![Drei verfügbare Schriftarten mit den echten Pack-Texturen; Designreferenz, kein Ingame-Screenshot](preview/Menue-Vorschau.png)
+![Designreferenz mit den enthaltenen Texturen und beispielhaften Statuswerten, kein Ingame-Screenshot](preview/Menue-Vorschau.png)
 
-## Installation und Update
+## Installation und zentrale Verwaltung
 
-1. Proxy und Paper-Backends beenden. Alte ServerHub-JARs durch `ServerHub-2.5.0.jar` ersetzen; keine doppelten Versionen behalten.
-2. Für ServerNavigator-Integration dessen neue `ServerNavigator-1.2.0.jar` auf dem Proxy installieren. Vorhandene Navigator-Ziele und Verzögerungen bleiben in dessen `config.toml`.
-3. Netzwerk vollständig starten. Danach ServerHub-Einstellungen ausschließlich unter `plugins/serverhub-velocity/` am Proxy bearbeiten.
-4. `/serverhubproxy reload` lädt Menü und Pack. `/serverhubproxy packcheck` prüft den Download. Nach geänderten Pack-Dateien neu verbinden.
+1. Proxy und Backends beenden, alte ServerHub-JARs durch `ServerHub-2.5.1.jar` ersetzen, dann neu starten. Menüprotokoll 3 erfordert das gemeinsame Update.
+2. Im Netzwerk ausschließlich **`plugins/serverhub-velocity/` am Proxy** bearbeiten. Alle registrierten Velocity-Ziele werden automatisch in **`servers.yml`** angelegt. Eigene Namen, Farben und Einstellungen bleiben erhalten. Entfernte Ziele behalten ihre Konfiguration, erscheinen aber nicht im Menü.
+3. `/serverhubproxy reload` prüft Einstellungen und baut das Pack. Nach einer Packänderung neu verbinden. `/serverhubproxy status`, `fonts` und `packcheck` helfen bei der Prüfung.
 
-Proxy und Backends gemeinsam aktualisieren: 2.5 ergänzt Statuskanal und Menüoptionen und ist nicht mit älteren ServerHub-Versionen mischbar. Die bisherige Standardkonfiguration `pack.mode=github` wird gesichert und auf `auto` umgestellt. Externe Downloadmodi bleiben erhalten. Die vorherige ZIP wird bei Änderungen als `serverhub-pack-backup-<hash>.zip` gesichert.
+Paper erkennt Velocity-/Bungee-Forwarding automatisch. Lokale Einstellungen und Packs werden dann ignoriert; am Backend wird kein eigener Pack-Host gestartet. `network.mode` in der lokalen `config.yml`: `auto`, `proxy`, `standalone`. Vorhandenes sicheres Proxy-Forwarding weiter verwenden.
 
-Paper erkennt Velocity-/Bungee-Forwarding in `config/paper-global.yml`, `spigot.yml` bzw. dem alten `paper.yml`. Im Netzwerk verwendet es die vom Proxy bestätigten Einstellungen und startet keinen lokalen Pack-Server. Bestehendes Modern Forwarding und der Schutz der Backends bleiben Voraussetzung. `network.mode` in der lokalen `config.yml` unterstützt `auto` (Standard), `proxy` und `standalone` als manuellen Override.
+Ohne Proxy liegen dieselben Dateien unter **`plugins/ServerHub/`**. `/sh reload` lädt lokal neu; es gibt nur das lokale Ziel `local`. Die Netzwerkerkennung ermittelt keine fremden Server ohne Velocity.
 
-Ohne Proxy verwendet Paper **`plugins/ServerHub/servers.yml`**, **`plugins/ServerHub/pack/`** und **`plugins/ServerHub/config.properties`**. Dann lädt `/extramenu reload` lokal neu; es gibt keinen Proxy-Timeout. Ein eigenständiger Server kann mit dieser lokalen Ansicht sich selbst darstellen, aber keine fremden Velocity-Ziele ermitteln. Im erkannten Proxybetrieb werden lokale Menü- und Pack-Änderungen ignoriert.
+## CubeCoders AMP: den tatsächlichen Schlafzustand lesen
 
-## Statusintervall und Backend-Meldeweg
-
-Die vollständige Konfiguration steht am Proxy in **`plugins/serverhub-velocity/servers.yml`**, direkt im Abschnitt `status` am Dateianfang. Es gibt dafür keine einzelnen Backend-Menükonfigurationen.
+AMP kann den Java-Prozess vollständig beenden und Minecraft-Pings trotzdem aus dem Cache beantworten. Das erklärt eine grüne Anzeige trotz 0 MB RAM. Das Paper-Plugin kann im beendeten Prozess keine Meldung mehr senden. **Für diesen Modus `amp.yml` am Proxy einmalig konfigurieren:**
 
 ```yaml
-status:
-  enabled: true
-  ping-interval-seconds: 1
-  timeout-ms: 1000
-  refresh-open-menu: true
-  backend-reports: true
-  report-bind: '0.0.0.0'
-  report-port: 8125
-  report-host: auto
-  report-scheme: http
-  heartbeat-interval-seconds: 1
-  heartbeat-timeout-seconds: 5
+enabled: true
+url: 'https://panel.example.org/'
+mode: controller
+username: serverhub
+password: ''
+token: 'DEIN-SERVICE-LOGIN-TOKEN'
+poll-interval-seconds: 3
+stale-after-seconds: 12
+auto-match: true
 ```
 
-Die bisherige Standardfrist von 10 Sekunden wird beim Update auf 1 Sekunde verkürzt, das alte Standard-Pinglimit von 2000 auf 1000 ms. Die vorherige Datei wird als `servers-v2.4-backup.yml` gesichert. Abweichende eigene Werte bleiben erhalten. `ping-interval-seconds` erlaubt 1–300 Sekunden.
+Die Vorlage enthält alle Einstellungen. Entweder Benutzer und Passwort oder Benutzer und einen gültigen AMP-Service-Login-Token verwenden. Bei Tokenanmeldung das Passwort leer lassen. Alternativ Namen vorhandener Umgebungsvariablen in `password-env` / `token-env` eintragen. Keine Webseite mit vorgeschalteter interaktiver Anmeldung verwenden. API-Dokumentation der eigenen AMP-Installation: Paneladresse plus `/API`.
 
-Der Proxy übermittelt die Daten für den Berichtskanal automatisch im virtuellen Host seiner Minecraft-Statusanfrage. Das Backend muss dafür weder einen Spieler haben noch zuvor besucht werden. Es meldet danach periodisch und bei einer gemessenen Zustandsänderung über einen eigenen HTTP-Kanal. Die Berichte sind pro Ziel authentifiziert; nur registrierte Ziele werden angenommen. Der Proxy merkt sich Reihenfolge und Prozesskennung, damit alte oder verspätete Meldungen keinen neueren Zustand überschreiben. Abgelaufene Berichte fallen nach `heartbeat-timeout-seconds` auf die Pingprüfung zurück.
+ServerHub verwendet ausschließlich `Core/Login` und `ADSModule/GetInstances`. Der Benutzer benötigt die passenden Session- und Instanz-Leserechte in AMP; keine Start-, Stop- oder Konsolenrechte erforderlich. Die Zugangsdaten bleiben auf dem Proxy. Der Pollingaufruf startet oder weckt selbst keinen Spielserver.
 
-**Dafür muss TCP-Port 8125 vom Backend zum Proxy erreichbar sein.** Dieser interne Statusport gehört nicht zum Pack-Download und muss nicht für Spieler öffentlich freigegeben werden. Bei Docker/NAT die Portweiterleitung am Proxy einrichten. `report-host: auto` nutzt die tatsächliche IP des Proxys aus der Statusverbindung; bei abweichendem Routing zentral einen passenden Hostnamen oder eine IP setzen. Hostnamen sind auf 64 Zeichen begrenzt. Ein ausdrücklich gesetzter Host wird über den privaten Proxy-Kanal bestätigt; nach einer Änderung jedes betroffene Backend einmal über den Proxy betreten. Danach gilt der gespeicherte Meldeweg auch ohne Spieler und nach Neustarts. Der Standard `auto` benötigt diesen Schritt nicht. Bind/Port nach dem Start ändern: Proxy neu starten. `report-scheme: https` benötigt einen eigenen TLS-Reverse-Proxy vor dem eingebauten HTTP-Empfänger. Alle anderen Werte werden mit `/serverhubproxy reload` geladen. Ohne erreichbaren Berichtskanal bleibt der bisherige Ping-Fallback aktiv.
+Eindeutige AMP-Instanznamen bzw. FriendlyNames werden mit den Velocity-Namen verglichen. Stimmen sie nicht überein, zentral pro Ziel zuordnen:
 
-**`/serverhubproxy status`** zeigt je Ziel den Status, das Alter und den Wert der letzten Backend-Meldung sowie das Ping-Ergebnis. Bei „noch keine Backend-Meldung“ zuerst die neue JAR auf diesem Backend, `status.backend-reports`, Port 8125 und gegebenenfalls `report-host` prüfen. Die automatisch erstellten Dateien `status-secret.bin` am Proxy und `proxy-status.properties` am Backend enthalten Zugangsdaten zum Statuskanal; aufbewahren und nicht veröffentlichen. Sie müssen nicht manuell bearbeitet werden. Die gespeicherte Verbindung funktioniert nach einem Neustart weiter und wird durch neue Statusanfragen automatisch angepasst.
+```yaml
+servers:
+  survival:
+    amp-instance: 'AMP-Instanz-ID-oder-exakter-Name'
+```
 
-## Eine zentrale Serverdatei
+Bei mehreren gleich benannten Instanzen die eindeutige `InstanceID` verwenden. Mit `auto-match: false` werden nur explizit zugeordnete Ziele von AMP verwaltet; alle anderen nutzen den bisherigen Statusweg. Bei aktivem Auto-Matching ohne eindeutigen Treffer, unbekanntem Zustand oder abgelaufener API-Antwort erscheint **Grau** statt eines irreführenden grünen Cache-Pings. `/serverhubproxy status` zeigt die API-Diagnose und die getrennten Ping-/Backendwerte.
 
-**`plugins/serverhub-velocity/servers.yml`** enthält das Menü, die Darstellungen aller Ziele, die Schriftauswahl und das HUD. Beim Start und regelmäßig werden alle registrierten Velocity-Server ergänzt. Vorhandene Namen, Farben und Größen bleiben erhalten. Entfernte Ziele behalten ihre Einstellungen, erscheinen aber nicht in der Auswahl. Neue Einstellmöglichkeiten werden beim Update ergänzt.
+Standardzuordnung in `amp.yml`: `Sleeping`/50 und `PreparingForSleep`/45 → Gelb; `Ready`/20 → Grün; Start-/Wartezustände → Gelb; gestoppt/Fehler → Rot. Falls die AMP-Version andere Zustandskennungen liefert, lassen sich die Listen unter `states` ergänzen/überschreiben. Eine unbekannte Kennung wird nicht als online ausgegeben.
+
+`mode: instance` mit `instance-target: survival` kann stattdessen den direkten Web-Endpunkt **einer** AMP-Spielinstanz über `Core/GetStatus` lesen. Für mehrere Server den ADS-Controller und `mode: controller` verwenden. Bei API-Problemen werden alte Werte nur bis `stale-after-seconds` verwendet; fehlgeschlagene Anmeldungen haben eine Wartezeit.
+
+## Menü, Breiten und eigene Buttongrafiken
 
 ```yaml
 menu:
   title: Serverauswahl
-  title-color: '#3D2817'
-  title-font-size: 12
-  title-padding: 12
-  title-max-width: 320
   font-family: sans
   font-size: 12
-  text-color: '#FFF4D6'
-  button-width: 140
+  title-font-size: 12
+  title-padding: 48
+  title-max-width: 400
+  button-width: 0
+  button-min-width: 180
+  button-max-width: 360
+  align-button-widths: true
+  button-style: minecraft
+  rounded-buttons: false
   layout: list
   navigation: scroll
-  page-size: 6
-  show-page-info: true
   show-server-count: false
+  show-page-info: true
   single-page-info: false
 servers:
-  lobby:
-    name: Treffpunkt
-    color: '#A8E091'
+  challenges:
+    name: Challenges
+    color: '#FFFFFF'
     font-size: 12
     font-family: ''
-    permission: ''
-    description: ['Unsere gemeinsame Lobby']
-    hidden: false
-    order: 0
+    width: 0
+    background: ''
+    background-tint: '#FFFFFF'
+    rounded: false
+    prefix: ''
+    hover-enabled: true
+    hover: ''
+    amp-instance: ''
     status-override: auto
     sleep-motd-contains: []
+    hidden: false
+    order: 0
+    permission: ''
+    description: []
 ```
 
-Die Schlüssel unter `servers` sind die echten Velocity-Namen, auch Namen mit Punkten. Bis zu 256 Ziele; Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich, maximal 64 Zeichen. `font-size`: **8, 10, 12, 14 oder 16**. Farben als `'#RRGGBB'`. Eine leere `font-family` übernimmt den Menüstandard. `order` sortiert aufsteigend, danach alphabetisch.
+`button-width: 0` misst den tatsächlichen Text einschließlich aktivem Präfix und Newszeichen. `align-button-widths: true` gibt allen Servern die größte benötigte Breite. Dadurch wird beispielsweise „Challenges“ vollständig angezeigt. `servers.<ziel>.width: 240` setzt eine eigene Wunschbreite; bei gemeinsamer Ausrichtung gilt der größte Wert für alle. Für unterschiedlich breite Buttons `align-button-widths: false`. Serverbreiten: 80–500 GUI-Pixel. Bei extrem langen Texten begrenzt `button-max-width` die automatische Breite.
 
-`hidden: true` blendet ein Ziel aus. `permission` wird am Proxy und auf Paper geprüft. Ein ausdrückliches `false` für `serverhub.connect.<target>` am Proxy sperrt das Ziel ebenfalls. Diese Prüfungen gelten auch beim Verbindungsversuch. Adressen, Ports oder Navigator-Zugangsdaten werden nicht in die Menüeinträge übertragen. Ein ungültiger Reload lässt die bisherige Laufzeitkonfiguration aktiv.
+Der Titel bleibt fest über der Scrollliste. Die neue originale, transparente Pergamentgrafik wird aus zwei Endstücken und einem variablen Mittelteil zusammengesetzt. `title-padding` lässt mehr Abstand zwischen Text und eingerollten Enden. Der Titel wird bei `title-max-width` passend gekürzt. Das gelbe Warnsymbol ist Teil des Minecraft-Clients und per Dialog-API nicht abschaltbar. `title-warning-offset: 24` gleicht dessen Platz rechts aus; einstellbar von 0 bis 40.
 
-## Darstellung und Navigation
+Standard bleiben native Minecraft-Buttons mit unveränderter Hover-/Fokusdarstellung. Für eine eigene Grafik **`backgrounds/challenges.png`** im Proxy-Pluginordner ablegen und `background: challenges` am Ziel setzen. Die gesamte PNG wird auf dieselbe Buttonfläche skaliert; Text und Statuspunkt bleiben daran ausgerichtet. Vorlagen `blue`, `paper` und `wood` sind enthalten. `background-tint` tönt die Grafik, Weiß erhält die Originalfarbe.
 
-Der Titel steht zentriert im festen Dialogkopf und scrollt nicht mit der Serverliste. Das gelbe Warnsymbol neben dem Titel wird von Minecraft selbst für benutzerdefinierte Dialoge hinzugefügt; die Dialog-API kann es nicht abschalten. Es ist keine ServerHub-Fehlermeldung. `menu.title-warning-offset` reserviert links standardmäßig 24 Pixel als Gegenstück zum Symbol rechts, damit die Rolle mittig steht; bei anderer Clientdarstellung ist der Wert zwischen 0 und 40 anpassbar. Die Rolle wird aus drei PNG-Teilen in der gemessenen Textbreite zusammengesetzt: kurzer Text erhält eine kurze Rolle, längerer Text eine längere. `title-padding` bestimmt den seitlichen Rand; `title-max-width` begrenzt die Breite. Zu lange Namen werden passend gekürzt; volle Servernamen stehen im Tooltip.
+`rounded: true` bzw. `menu.rounded-buttons: true` rundet die eigene PNG mit einem Radius von vier GUI-Pixeln. **Die native Klickfläche und die darunterliegende Minecraft-Buttonfläche bleiben rechteckig.** Vollständig freie Buttongeometrie ohne diese Unterlage ist mit nativen Dialogbuttons nicht möglich. Bei `background: ''` und `button-style: minecraft` gibt es keine eigene PNG zum Abrunden. Keine globalen Minecraft-Texturen werden ersetzt.
 
-Die Statuspunkte sitzen unabhängig von Name und Schriftgröße an derselben linken Position. Standardmäßig zeigt Minecraft seine eigenen Buttons einschließlich Hover-, Fokus- und deaktivierter Darstellung. ServerHub malt keine Textur darüber. Mit `menu.button-style: wood` lässt sich die frühere Holzoptik bei Bedarf einschalten. `menu.button-width` steuert die Breite der Serverbuttons. Für die drei Bedienbuttons gibt es eigene Werte:
+Die Bedienbuttons haben unter `buttons.previous`, `buttons.next` und `buttons.close` jeweils `width`, `font-size`, `font-family`, `color` und `background-color`. Breite 80–300, feste native Höhe 20 Pixel. `color` tönt den Text; `background-color` wirkt bei `menu.button-style: wood`. Texte unter `menu.previous`, `menu.next`, `menu.close`. `text.shadow: true` und `text.shadow-color` verbessern die Lesbarkeit.
 
-```yaml
-buttons:
-  close:
-    width: 170
-    font-size: 14
-    font-family: serif
-    color: '#FFFFFF'
-    background-color: '#CCDDEE'
-  next:
-    width: 140
-    font-size: 10
-    font-family: ''
-    color: '#FFF4D6'
-    background-color: '#FFFFFF'
-  previous:
-    width: 140
-    font-size: 10
-    font-family: ''
-    color: '#FFF4D6'
-    background-color: '#FFFFFF'
-text:
-  shadow: true
-  shadow-color: '#24180E'
-```
+`layout: grid` bietet zwei Spalten. `navigation: pages` aktiviert Blättern mit `page-size`. Im Scrollmodus gibt es keine Seiteninfo; im Seitenmodus erscheint sie standardmäßig erst bei mehreren Seiten direkt über „Schließen“. Mit `show-page-info: false` vollständig abschaltbar.
 
-`color` ist die Schriftfarbe. `background-color` wirkt ausschließlich bei `menu.button-style: wood` und tönt dort die Holztextur. Im Standardmodus `minecraft` kommt der Hintergrund unverändert vom Client. Weiß erhält die Originalfarben der optionalen Holztextur. `menu.button-background-color` tönt alle Serverbuttons, `menu.title-background-color` die Rolle. Breiten: 80–300 GUI-Pixel. Die native Buttonhöhe bleibt 20 Pixel; die Schriftgröße ist separat wählbar. Die Texte stehen unter `menu.previous`, `menu.next` und `menu.close`.
+## Mehrere eigene TTF-/OTF-Schriften
 
-| Einstellung | Wirkung |
-|---|---|
-| `menu.layout: list` | Server untereinander, Standard. |
-| `menu.layout: grid` | Zwei Spalten. |
-| `menu.navigation: scroll` | Alle freigegebenen Ziele; bei Platzmangel native Scrollliste. |
-| `menu.navigation: pages` | Blättern mit `menu.page-size` Zielen je Seite. |
-| `menu.show-page-info: false` | Seiteninfo vollständig ausblenden. |
-| `menu.show-server-count: false` | Keine Angabe wie „6 Server“, Standard. |
-| `menu.single-page-info: false` | Bei nur einer Seite keine Seiteninfo, Standard. |
-
-Im Scrollmodus erscheint keine künstliche Anzeige „Seite 1/1“. Bei Seiten steht die optionale Info direkt über „Schließen“. In sehr kleinen Clientfenstern kann auch der Seitenmodus scrollen. Das Menü öffnet kein Truhen- oder Spielerinventar; Escape und Schließen führen ins Spiel zurück. Geänderte Statuswerte werden standardmäßig auch in bereits geöffneten Menüs angezeigt. Die native Dialog-API kann die Scrollposition dabei nicht übernehmen. `status.refresh-open-menu: false` verhindert diese Erneuerung; dann zeigt erneutes Öffnen den aktuellen Stand. Unveränderte Heartbeats bauen das Menü nicht neu auf.
-
-## Drei Schriften und eigene Schriftdateien
-
-`menu.font-family` bietet **`sans`**, **`serif`** und **`mono`**. Alle drei sind mit allen fünf Schriftgrößen im Standardpaket enthalten. Ihre Auswahl braucht keinen eigenen Pack-Host. Mit `custom` kann eine eigene Schrift verwendet werden:
+Die Standardfamilien **`sans`**, **`serif`**, **`mono`** sind bereits im Pack enthalten. Eigene Dateien etwa **`fonts/meine_schrift.ttf`** und **`fonts/zweite.otf`** im Proxy-Pluginordner ablegen. Die Schrift-ID ist der Dateiname ohne Endung, in Kleinbuchstaben; andere Zeichen werden zu `_`. IDs beginnen mit einem Buchstaben und enthalten bis zu 32 Zeichen aus `a-z`, `0-9`, `_`, `-`.
 
 ```yaml
 menu:
-  font-family: custom
-font:
-  url: 'https://deine-domain.example/schriften/MeineSchrift.ttf'
-  refresh: false
+  font-family: meine_schrift
+servers:
+  challenges:
+    font-family: zweite
+buttons:
+  close:
+    font-family: serif
+fonts:
+  dritte:
+    url: 'https://example.org/fonts/Dritte.ttf'
+    refresh: false
 ```
 
-Der Beispiel-Link muss durch eine echte **direkte HTTPS-Adresse zu einer TTF- oder unterstützten OTF-Datei** ersetzt werden. Eine HTML-Seite, Google-Fonts-CSS oder ZIP funktioniert nicht. Maximal 8 MiB; Schriftlizenz beachten. Alternativ die Datei als **`pack/assets/serverhub/fonts/custom.ttf`** im Proxy-Pluginordner ablegen und `font.url: ''` lassen.
+Mehrere direkte HTTPS-Links unter `fonts` sind möglich; lokale Dateien und Links nicht mit derselben ID belegen. Es müssen echte TTF/unterstützte OTF-Dateien sein, keine HTML-Seiten, CSS oder ZIPs. Maximal 8 MiB pro Datei und 16 Familien einschließlich der Standards. Größen: **8, 10, 12, 14, 16**. `font.url` bleibt aus Kompatibilität als Einzellink für die ID `custom` verfügbar.
 
-Beim Reload lädt ServerHub eine neue URL einmalig, prüft die Schrift und erzeugt Bitmap-Atlanten für alle fünf Größen. `font.refresh: true` erzwingt den erneuten Download bei jedem Reload; danach wieder auf `false` setzen. Text unterstützt ASCII und Latin-1 einschließlich deutscher Umlaute und ß. Weitere Zeichen werden in den Menülabels durch `?` ersetzt.
+Beim Reload werden neue/geänderte Dateien geprüft und in Minecraft-Bitmap-Schriften für alle Größen umgewandelt. **Die gültige Original-TTF wird nicht direkt vom Client als Fontprovider geladen.** Fehlerhafte Schriftdateien werden ausgelassen, bestehende funktionierende Atlanten bleiben erhalten, fehlende Familien fallen auf Sans zurück. Details in **`font-problems.txt`**; IDs in **`fonts-available.txt`** oder **`/serverhubproxy fonts`**. Die fehlerhafte Datei bleibt zur Korrektur im Quellordner.
 
-Unveränderte TTF-Dateien werden nicht bei jedem Reload neu gerastert. Dadurch bleiben manuelle Änderungen an den PNG-Schriftatlanten erhalten. Deren tatsächliche Glyphenbreiten werden neu gemessen und an die Backend-Sitzungen übertragen. Bestehende Spieler behalten die zu ihrem geladenen Pack gehörenden Breiten bis zum nächsten Beitritt.
+Auch `pack/assets/serverhub/fonts/<id>.ttf` wird weiter unterstützt. Unveränderte Schriften werden nicht neu gerastert; manuelle Atlasänderungen bleiben erhalten. Menülabels unterstützen ASCII und Latin-1 einschließlich Umlauten und ß; weitere Zeichen werden durch `?` ersetzt. Bestehende Spieler behalten die Schrift- und Grafikmetriken ihres geladenen Packs bis zur nächsten Netzwerkverbindung.
 
-## Schlafstatus und ServerNavigator
+## Packfehler nach einer eigenen Schrift oder PNG
 
-| Punkt | Bedeutung |
+Ein eigenes Pack unterscheidet sich vom unveränderten GitHub-Download. **`pack.mode=auto` wechselt deshalb auf den eingebauten HTTP-Host, standardmäßig Port 8124/TCP. Dieser muss von den Spielern erreichbar sein.** Eine gültige TTF allein behebt einen nicht erreichbaren Download nicht.
+
+Die Einstellungen stehen in `config.properties`:
+
+| Modus | Auslieferung |
 |---|---|
-| Grün | Gültige Pingantwort, kein gemeldetes Schlafsignal. |
-| Rot | Kein gültiger Ping innerhalb des Zeitlimits. |
-| Gelb | Paper meldet eine Pause, ein konfiguriertes Schlafsignal liegt vor oder ServerNavigator startet/verbindet gerade. |
-| Grau | Noch keine aktuelle Prüfung. |
+| `auto` | Exakter Standard über den festen GitHub-Release, Änderungen über den eigenen Pack-Host. |
+| `self-host` | Immer eigener HTTP-Host. |
+| `external` | Direkte ZIP-URL in `pack.external-url`; muss exakt der lokal erzeugten ZIP entsprechen. |
+| `github` | Nur unveränderter Standard, eigene Dateien werden abgelehnt. |
 
-**Paper-Pause wird direkt vom Backend gemeldet.** Das Backend liest `Server.isPaused()` im Paper-Scheduler, der auch während der nativen Pause weiterläuft, und sendet den Wert über den eigenen Statuskanal. Dafür braucht es keinen verbundenen Spieler. Eine frische Schlafmeldung hat Vorrang vor grünen und roten Status-Pings. Die Ping-Versionskennung `[serverhub:paused=1]` bzw. `0` bleibt als zusätzlicher Fallback bestehen; die Protokollnummer bleibt unverändert. Die neue ServerHub-JAR muss auch auf jedem Backend laufen.
+Bei SRV, Docker/NAT oder abweichenden öffentlichen Adressen **`self-host.public-host`** und **`self-host.advertised-port`** setzen. `auto` verwendet den Verbindungsnamen des Spielers. Der eingebaute Server spricht HTTP; HTTPS erfordert einen eigenen TLS-Reverse-Proxy. Bind/Port nach dem Start ändern: Proxy neu starten.
 
-Andere Schlaf-Hosts können vor dem eigentlichen Paper-Prozess antworten oder den gesamten Java-Prozess stoppen. Dann kann das Paper-Plugin selbst keinen weiteren Zustand messen. Deren Schlafzustand ist ohne eigenes Signal oder gezielte Integration in diesen Anbieter nicht zuverlässig ableitbar. Dafür `sleep-motd-contains` mit einer eindeutigen MOTD-/Versionskennung befüllen oder `status-override: sleeping` verwenden. Weitere Overrides: `auto`, `online`, `offline`. Null Spieler allein wird nicht als Schlaf interpretiert. Rot bedeutet nicht zwingend eine abgeschaltete Maschine; auch Netzwerkfehler können die Ursache sein.
+`/serverhubproxy packcheck` prüft die angebotene URL, ZIP und SHA-1 **vom Proxy aus**; zusätzlich muss dieselbe Adresse von außen erreichbar sein. Ein clientseitiger Paketfehler wird mit der konkreten Downloadadresse protokolliert. Bei Schriftproblemen `font-problems.txt` prüfen. Ohne die konkrete Schrift und den Clientfehler lässt sich die Ursache eines früheren Fehlversuchs nicht eindeutig bestimmen.
 
-Mit **ServerNavigator ab 1.2.0 auf dem Proxy** ist die Integration automatisch aktiv (`integration.servernavigator: true`). Verwaltete Ziele werden über dessen öffentliche Schnittstelle an seine vorhandene Warteschlange übergeben. ServerHub startet keinen konkurrierenden Direktwechsel und übernimmt keinen eigenen Start-Timer: Navigator behält Readiness-Prüfung, Wakeup, Verzögerung, Berechtigungen, Cooldowns, Meldungen und Abbruch. Dessen laufende Prüfung/Start-/Verbindungsphase wird gelb dargestellt; der eigene Shift-F-Actionbar-Hinweis ruht während der Wartephase.
+Die bearbeitbare Quelle liegt in **`pack/`**. Der Reload erzeugt **`serverhub-pack.zip`** automatisch, mit neuer SHA-1 und Paket-ID. Eigene Änderungen bleiben erhalten; unveränderte Werksdateien werden bei Updates angepasst. Die vorherige Ausgabe wird als `serverhub-pack-backup-<hash>.zip` gesichert. Bei externer Auslieferung nach jedem Packumbau genau diese neue ZIP hochladen.
 
-Ohne Navigator oder für dort nicht verwaltete Ziele gilt der normale Velocity-Wechsel. Eine vorhandene veraltete oder fehlerhafte Navigator-Schnittstelle führt zu einer Meldung, damit ein fehlgeschlagener Aufruf nicht dessen Warteablauf umgeht. Die Integration lässt sich zentral ausschalten. Die Statusfarbe selbst sperrt keine Verbindungen: ein rotes oder gelbes Ziel darf weiterhin über Navigator geweckt werden.
+Ein Pflichtpaketangebot pro Netzwerkbeitritt: Backendwechsel und Reload senden kein zweites Angebot. Nach Änderungen neu verbinden. Bereits angebotene alte ZIP-Versionen bleiben am eingebauten Host für aktive Sitzungen erreichbar. Nur die erfolgreiche Anwendung des richtigen Packs schaltet das Menü frei.
 
-`status.ping-interval-seconds` (Standard **1**) und `status.timeout-ms` (**1000**) steuern die Prüfung. `status.enabled: false` blendet Punkte aus und beendet Status-Pings. Die frühere Verzögerung bis zum nächsten Backend-Handshake entfällt: der Proxy verteilt Änderungen sofort und prüft außerdem regelmäßig den Stand.
+## Neuigkeiten pro Server
 
-## Pack im Pluginordner bearbeiten
+```text
+/sh news start Neue Welt verfügbar!\nEntdecke das neue Gebiet.
+/sh news stop
+/sh news start --server challenges Neue Challenge gestartet!
+/sh news stop --server challenges
+```
 
-Auf dem Proxy ist **`plugins/serverhub-velocity/pack/`** die bearbeitbare Quelle. Darin liegen `pack.mcmeta`, die Texturen unter `assets/serverhub/textures/`, die Fontdefinitionen und `assets/serverhub/fonts/`. PNG-Dateien direkt bearbeiten und **`/serverhubproxy reload`** ausführen. Die Ausgabe **`serverhub-pack.zip`**, SHA-1 und Paket-ID werden automatisch neu erzeugt. Nicht die erzeugte ZIP als Quelldatei bearbeiten.
+Ohne `--server` gilt der aktuell besuchte Server. Aus der Lobby kann ein anderes Ziel angegeben werden. Maximal 4096 Zeichen, `\n` fügt einen Zeilenumbruch ein; `&`-Farbcodes werden unterstützt. Ein News-Symbol erscheint rechts im Serverbutton. Solange News aktiv sind, öffnet ein Klick auf den markierten Button die Nachricht; **„Server betreten“** führt zur vorhandenen Verbindung bzw. ServerNavigator-Warteschlange, **„← Zurück“** zur Auswahl.
 
-Eigene Änderungen in `pack/` bleiben erhalten. Unveränderte Standarddateien werden beim Versionswechsel aktualisiert; fehlende Standarddateien werden beim Start/Reload ergänzt. Dadurch bleibt ein unveränderter Standardordner auch nach dem Update im GitHub-Downloadmodus. Bei manuellen Änderungen an den neun Roll-/Buttonteilen deren Abmessungen und Glyphenzuordnung beibehalten. Schriftatlanten müssen das vorhandene 16×12-Latin-1-Raster behalten. Die `_shadow`-Definitionen sollen dieselbe Schrifttextur mit um einen Pixel geändertem Ascent verwenden. Links außerhalb des Packordners und zu große Pakete werden abgelehnt. Sicherungen der vorherigen Ausgabe liegen neben der ZIP.
+`serverhub.news` wird auf Paper und am Proxy benötigt; dort über das Berechtigungssystem vergeben. Die Proxykonsole kann `/serverhubproxy news start --server challenges Nachricht` und `... stop --server challenges` verwenden. Aktive Nachrichten liegen zentral in **`news.yml`** am Proxy und bleiben nach Neustarts erhalten. `news.enabled: false` blendet die Funktion im Menü aus. Ohne Proxy wird ausschließlich die lokale `news.yml` verwendet.
 
-Downloadoptionen stehen in `config.properties`:
+## Hoverinfos und optionale Präfixe
 
-| `pack.mode` | Auslieferung |
+```yaml
+hover:
+  enabled: false
+  text: |-
+    {name}
+    Status: {status}
+    Spieler: {players}/{max_players}
+prefix:
+  enabled: false
+  text: '{players} Spieler'
+  placeholderapi: true
+```
+
+Hover ist standardmäßig aus. `servers.<ziel>.hover-enabled: false` deaktiviert es zusätzlich pro Server; `hover` überschreibt dort den globalen Text. Interne Zielnamen erscheinen nur, wenn die Vorlage `{target}` enthält. Unterstützte Platzhalter: `{name}`, `{target}`, `{status}`, `{players}`/`{online}`, `{max_players}`/`{max}`. Spielerzahlen kommen von den aktuellen Velocity-Verbindungen zum jeweiligen Ziel; die maximale Zahl vom letzten Status-Ping. Unbekannte Zahlen erscheinen als `?`.
+
+Aktivierte Präfixe stehen vor dem Servernamen. Ein servereigenes `prefix` überschreibt `prefix.text`. Optional wird **PlaceholderAPI** auf dem **aktuellen Paper-Server** über dessen öffentliche API verwendet, ohne harte Abhängigkeit. Die dort benötigten Expansions müssen installiert sein. Spielerbezogene `%...%`-Werte beziehen sich auf den Betrachter und das Backend, auf dem er das Menü öffnet; sie lesen nicht automatisch fremde Backenddaten. Für zielbezogene Informationen `{players}` bzw. geeignete Netzwerk-Expansions verwenden. `prefix.placeholderapi: false` deaktiviert die Auflösung auch in Hovertexten.
+
+## Status und ServerNavigator
+
+| Farbe | Bedeutung |
 |---|---|
-| `auto` | Unveränderter Standard über den festen GitHub-Release; eigenes Pack automatisch über den eingebauten HTTP-Server. Standard. |
-| `self-host` | Immer eingebauter Pack-Server; Standard TCP-Port 8124. |
-| `external` | Direkte HTTP(S)-ZIP-Adresse unter `pack.external-url`; Download muss exakt der erzeugten lokalen ZIP entsprechen. |
-| `github` | Nur das unveränderte Standardpaket. Eigene Dateien werden mit einer Fehlermeldung abgelehnt. |
+| Grün | AMP meldet Ready oder eine gültige Pingantwort ohne Schlafsignal liegt vor. |
+| Gelb | AMP/Paper schläft oder ServerNavigator startet/verbindet gerade. |
+| Rot | AMP meldet gestoppt/Fehler oder der Status-Ping ist nicht erreichbar. |
+| Grau | Daten fehlen, sind zu alt oder die AMP-Zuordnung ist nicht eindeutig. |
 
-**Eigene Pack-Dateien oder eine eigene Schrift benötigen einen von den Spielern erreichbaren Download.** Im Automatikmodus dafür den Pack-Port (Standard **8124/TCP**) am Proxy freigeben. `self-host.public-host=auto` verwendet den Verbindungsnamen des Spielers. Bei SRV, Port-Mapping oder Reverse-Proxy die öffentlichen Werte `self-host.public-host` und `self-host.advertised-port` setzen. Bind/Port nach Serverstart nur durch Neustart ändern. Der eingebaute Server spricht HTTP; `self-host.scheme=https` setzt einen separat eingerichteten TLS-Reverse-Proxy voraus.
+`servers.<ziel>.status-override`: `auto`, `online`, `offline`, `sleeping`. Ein Override hat Vorrang. **0 Spieler, 0 CPU oder ein erfolgreicher Porttest sind allein kein eindeutiger Schlafnachweis.** `sleep-motd-contains` kann für andere Schlafanbieter mit eindeutiger Kennung verwendet werden.
 
-Alternativ die erzeugte ZIP auf einem eigenen Webhost bereitstellen und `external` konfigurieren. Nach einem weiteren Pack-Reload dort ebenfalls die neuen exakt gleichen Bytes hochladen; `/serverhubproxy packcheck` kontrolliert die SHA-1. Eigene Änderungen können nicht automatisch den unveränderten öffentlichen GitHub-Release ersetzen.
+**Native Paper-Pause** bleibt separat unterstützt. Das Backend liest `Server.isPaused()` und sendet authentifizierte Meldungen ohne Spielertransport an den Proxy. In `servers.yml` am Dateianfang stehen `status.ping-interval-seconds` (1), `timeout-ms` (1000), `heartbeat-interval-seconds` (1) und `heartbeat-timeout-seconds` (5). Der interne **Statusport 8125/TCP** muss nur vom Backend zum Proxy erreichbar sein und ist vom öffentlichen Packport 8124 getrennt. `report-host: auto` nutzt die Proxy-IP aus der Statusverbindung. Bei anderem Routing zentral einen Host setzen; explizite abweichende Hosts werden beim nächsten Besuch jedes Backends über den privaten Proxykanal bestätigt. Danach funktioniert der gespeicherte Meldeweg auch ohne Spieler. `status-secret.bin` und `proxy-status.properties` enthalten interne Zugangsdaten und werden automatisch verwaltet.
 
-Ein Pflichtpaketangebot pro Netzwerkbeitritt bleibt erhalten. Backend-Wechsel und Reload senden kein zweites Angebot. Nach Pack-Änderungen einmal neu verbinden. Alte, bereits angebotene ZIP-Versionen bleiben während ihrer aktiven Sitzungen am eingebauten Host erreichbar. Nur die erfolgreiche Anwendung genau dieses Pakets schaltet das Menü frei; Ablehnung, Fehler oder Timeout führen zum Kick. Andere Ressourcenpakete werden nicht entfernt.
+Geöffnete Menüs werden nur bei geänderten Werten erneuert. Der Client kann dabei die Scrollposition zurücksetzen. `status.refresh-open-menu: false` zeigt Änderungen erst beim erneuten Öffnen. Der feste Titel bleibt außerhalb der Scrollliste.
 
-## Bedienung und Befehle
+**ServerNavigator ab 1.2.0 auf dem Proxy** wird automatisch genutzt (`integration.servernavigator: true`). Dessen Wakeup, Startprüfung, Verzögerung, Warteschlange, Berechtigungen, Cooldowns und Abbruch bleiben zuständig. ServerHub umgeht diese Abläufe nicht durch einen parallelen Direktwechsel. Während der Wartephase ruht der Shift-F-Actionbarhinweis. Die Statusfarbe sperrt keine Verbindung; ein schlafendes Ziel kann weiter über Navigator geweckt werden. Ohne Navigator bzw. für dort nicht verwaltete Ziele gilt der normale Velocity-Wechsel.
 
-Shift + F öffnet das Menü, ebenso `/extramenü`, `/extramenu`, `/extramen` oder `/serverhub`. Bei umbelegtem Handtausch gilt die neue Taste; die Grafik zeigt die Standardkombination.
+## Befehle und Rechte
 
-Der Hinweis aus drei Holzbrettern zeigt Shift / + / F rechts neben der Hotbar und belegt keinen Inventarslot. Zentral unter `shift-f-hint`: `enabled`, `interval-seconds` (1–2), `x-offset` (94–512 GUI-Pixel rechts der Bildschirmmitte) und `y-offset` (−32 bis 32, positiv nach unten). Die Actionbar-Ausgabe kann von anderen HUD-Plugins überlagert werden; F1 blendet sie aus. Die Grafik ist ein Tastaturhinweis. Optional: `hotbar-icon.enabled: true` und `slot: 8` für einen zusätzlichen Rechtsklick-Gegenstand; belegte Slots werden nur in freie Inventarplätze umgelagert.
-
-| Aktion | Befehl / Berechtigung |
+| Aktion | Befehl / Recht |
 |---|---|
-| Menü öffnen | `/extramenu`, `serverhub.use` (Standard alle) |
-| Proxy-Konfiguration und Pack laden | `/serverhubproxy reload`, `serverhub.proxy.reload` |
-| Status und Download prüfen | `/serverhubproxy status` / `packcheck`, gleiches Proxy-Recht |
-| Eigenständigen Paper-Server neu laden | `/extramenu reload`, `serverhub.reload` |
-| Ziel sperren | `serverhub.connect.<target>` am Proxy ausdrücklich auf `false` |
+| Menü | `/sh`, `/serverhub`, `/extramenu`, `/extramenü`, `/extramen`; `serverhub.use` (alle) |
+| News setzen/entfernen | `/sh news start ...`, `/sh news stop`; `serverhub.news` auf Paper und Proxy |
+| Proxy laden | `/serverhubproxy reload`; `serverhub.proxy.reload` |
+| Diagnose | `/serverhubproxy status`, `fonts`, `packcheck`; gleiches Proxyrecht |
+| Standalone laden | `/sh reload`; `serverhub.reload` |
+| Ziel sperren | `serverhub.connect.<ziel>` am Proxy ausdrücklich `false`, zusätzlich `permission` pro Ziel möglich |
 
-## Build und Prüfung
+Shift + F öffnet ebenfalls die Auswahl. Der Holzbrett-Hinweis Shift / + / F rechts neben der Hotbar belegt keinen Slot. Position über `shift-f-hint.x-offset` und `y-offset`; andere Actionbar-Plugins können ihn überlagern, F1 blendet ihn aus. Optional ein zusätzlicher Gegenstand mit `hotbar-icon.enabled: true` und `slot: 8`.
 
-Java 25, Maven 3.9+ und Python 3:
+## Build, Quellen und Prüfung
 
 ```sh
 python3 tools/package_pack.py
@@ -214,16 +223,14 @@ mvn -B clean verify
 python3 tools/prepare_release.py
 ```
 
-Installierbare Universal-JAR: `universal/target/ServerHub-2.5.0.jar`. Modul-JARs sind interne Builddateien. Normale Builds verpacken die eingecheckten Grafiken unverändert. Zum Neugenerieren Pillow installieren und `tools/build_pack.py` / `tools/render_preview.py` ausführen. Das Laufzeit-Rendering eigener TTFs erfolgt mit Java AWT ohne Desktopfenster. SnakeYAML wird in der Universal-JAR in einen privaten Namespace gepackt.
+Java 25, Maven 3.9+, Python 3. Universal-JAR: `universal/target/ServerHub-2.5.1.jar`; Modul-JARs sind interne Builddateien. GitHub Actions prüft beide Plattformen, private Bibliotheken, AMP-API-Fixtures, News, Schriftimporte, Layoutmetriken, HTTP-Download und Paketlebenszyklus. Nach Veröffentlichung werden die öffentlichen Downloads und eingebetteten Packbytes samt Prüfsummen geprüft. Details in `PRUEFUNG.txt`.
 
-Tests prüfen unter anderem echte HTTP-Berichte ohne Spielertransport, automatische Einrichtung durch Status-Pings, Zustandswechsel, abgelaufene Meldungen und Wiederholungsangriffe, Schlafsignale, Navigator-Routing ohne Direktwechsel, Schriftmetriken über den Plugin-Kanal, Titelzentrierung, ausgerichtete Statuspunkte, manuelle Pack-Änderungen, Schriftimport, Backups, deterministische ZIPs, Proxy-Erkennung und den einmaligen Paketlebenszyklus. Getrennte Klassenlader prüfen beide Plattform-Einstiegspunkte und den gepackten Ressourcen-Builder. GitHub Actions veröffentlicht nach erfolgreichem Build auf `main` und prüft die öffentlichen JAR-/Pack-Downloads samt Prüfsummen und eingebetteten Pack-Bytes.
+**Kein vollständiger Ingame-Test und kein Zugriff auf die konkrete AMP-Installation.** Vorschau ist eine Designreferenz. Die AMP-Abfrage ist gegen lokale API-Fixtures geprüft; Panelrechte und Zustandsdaten des eigenen Panels mit `/serverhubproxy status` kontrollieren. Bedrock/Geyser und andere Minecraft-Versionen sind nicht geprüft.
 
-**Kein vollständiger Ingame-Test.** Vorschau und Statuswerte sind eine Designreferenz. Darstellung, native Scrollliste, HUD-Position sowie Start-/Schlafverhalten im eigenen Netzwerk prüfen. Bedrock/Geyser und andere Minecraft-Versionen sind nicht geprüft. ServerHub wird gegen Velocity 4.2.0 gebaut; die Tests für ServerNavigator 1.2.0 verwenden Velocity 4.3.0. Die Kopplung nutzt ausschließlich deren gemeinsame öffentliche Player-/Plugin-Schnittstellen.
+Normale Builds verpacken eingecheckte Assets unverändert. Neugenerierung mit Pillow: `tools/build_pack.py` und `tools/render_preview.py`. Schriften werden zur Laufzeit mit Java AWT ohne Desktopfenster gerastert. SnakeYAML und Gson sind privat in die Universal-JAR gepackt. DejaVu-Schriftlizenz liegt im Pack und unter `art-source/FONT-LICENSE.txt`. Die neue Pergamentgrafik ist eine originale generierte Grafik, keine Kopie des verlinkten Stockfotos; Quelle und Prompt in [BANNER-SOURCE.md](art-source/BANNER-SOURCE.md).
 
-Holztextur aus der bereitgestellten Vorlage. Rollenteile, Informationszeile, Statuspunkt und Schriftatlanten werden aus den mitgelieferten Quellen generiert. Schriften: DejaVu Sans Bold, Serif und Sans Mono; Lizenz im Pack und unter `art-source/FONT-LICENSE.txt`.
-
-- [Mojang: Dialogkopf und Warnsymbol](https://feedback.minecraft.net/hc/en-us/articles/36627959856141-Minecraft-Java-Edition-Snapshot-25w20a)
+- [CubeCoders AMP API](https://github.com/CubeCoders/ampapi-node)
+- [AMP Proteus: Schlafmodus und gecachte Statusantworten](https://discourse.cubecoders.com/t/amp-proteus-2-8-0-release-notes/40953)
 - [Paper Dialog-API](https://docs.papermc.io/paper/dev/dialogs/)
-- [Paper Server.isPaused](https://jd.papermc.io/paper/26.3/org/bukkit/Server.html#isPaused())
-- [Paper ServerListPingEvent](https://jd.papermc.io/paper/26.3/com/destroystokyo/paper/event/server/PaperServerListPingEvent.html)
-- [Velocity RegisteredServer](https://jd.papermc.io/velocity/4.2.0/com/velocitypowered/api/proxy/server/RegisteredServer.html)
+- [Mojang: Dialogkopf und Warnsymbol](https://feedback.minecraft.net/hc/en-us/articles/36627959856141-Minecraft-Java-Edition-Snapshot-25w20a)
+- [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI)

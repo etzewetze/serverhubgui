@@ -35,6 +35,7 @@ public final class ServerHubVelocity {
     private final CentralMenuConfig menus;
     private final ServerStatusMonitor statusMonitor=new ServerStatusMonitor();
     private ScheduledTask discoveryTask;
+    private long nextPing;
     private BackendStatusReceiver statusReceiver;
     private boolean started;
     private final Object reloadLock=new Object();
@@ -207,8 +208,8 @@ public final class ServerHubVelocity {
     }
     private void pushMenus(){if(menus.current()!=null)for(Player player:proxy.getAllPlayers())sendMenu(player);}
     private void scheduleDiscovery(){
-        if(discoveryTask!=null)discoveryTask.cancel();
-        discoveryTask=proxy.getScheduler().buildTask(this,this::refreshStatuses).delay(Duration.ofSeconds(1)).repeat(Duration.ofSeconds(menus.current().options().number("status.ping-interval-seconds"))).schedule();
+        if(discoveryTask!=null)discoveryTask.cancel();nextPing=0;
+        discoveryTask=proxy.getScheduler().buildTask(this,this::refreshStatuses).delay(Duration.ofSeconds(1)).repeat(Duration.ofSeconds(1)).schedule();
     }
     void refreshStatuses(){
             try{
@@ -216,11 +217,12 @@ public final class ServerHubVelocity {
             }catch(IOException e){logger.warn("Neue Server konnten nicht in servers.yml ergänzt werden: {}",e.getMessage());}
             var menu=menus.current();
             if(amp!=null)amp.refresh();
-            if(menu.options().flag("status.enabled"))statusMonitor.refresh(proxy.getAllServers(),menu,server->{
+            long now=System.currentTimeMillis();
+            if(menu.options().flag("status.enabled")&&now>=nextPing){nextPing=now+menu.options().number("status.ping-interval-seconds")*1000L;statusMonitor.refresh(proxy.getAllServers(),menu,server->{
                 var receiver=statusReceiver;
                 if(receiver==null||!menu.options().flag("status.backend-reports"))return server.ping();
                 return server.ping(PingOptions.builder().virtualHost(receiver.link(server.getServerInfo().getName(),menu.options()).virtualHost()).timeout(Duration.ofMillis(menu.options().number("status.timeout-ms"))).build());
-            });
+            });}
             pushMenus();
     }
     void refreshRegistered()throws IOException {

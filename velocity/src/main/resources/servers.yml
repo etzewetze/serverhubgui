@@ -1,20 +1,17 @@
-# ServerHub: diese Datei steuert das gesamte Netzwerk. /serverhubproxy reload
-# Ohne Proxy: plugins/ServerHub/servers.yml und /extramenu reload.
-# Neue Velocity-Ziele werden automatisch unter servers ergänzt.
-config-version: 3
-# Status wird standardmäßig JEDE SEKUNDE geprüft und an Paper verteilt.
+# Zentrale Konfiguration: plugins/serverhub-velocity/servers.yml am Proxy.
+# /serverhubproxy reload; nach Packänderungen neu verbinden.
+# Ohne Proxy: plugins/ServerHub/servers.yml und /sh reload.
+config-version: 4
 status:
   enabled: true
   ping-interval-seconds: 1
   timeout-ms: 1000
-  # Aktualisiert geöffnete Menüs nur bei tatsächlichen Änderungen.
-  # Dabei kann Minecraft die Scrollposition zurücksetzen.
+  # AMP-Schlafmodus separat in amp.yml konfigurieren!
   refresh-open-menu: true
-  # Meldungen funktionieren auch ohne Spieler. Nur zwischen Backend und Proxy freigeben.
+  # Native Paper-Pause: interner Meldekanal, kein Spieler nötig.
   backend-reports: true
   report-bind: '0.0.0.0'
   report-port: 8125
-  # auto: tatsächliche Proxy-IP aus der Statusverbindung; Docker/NAT ggf. zentral anpassen.
   report-host: auto
   report-scheme: http
   heartbeat-interval-seconds: 1
@@ -24,15 +21,20 @@ menu:
   title-color: '#3D2817'
   title-background-color: '#FFFFFF'
   title-font-size: 12
-  title-padding: 12
-  title-max-width: 320
+  title-padding: 48
+  title-max-width: 400
   text-color: '#FFF4D6'
   button-background-color: '#FFFFFF'
-  button-width: 140
+  # 0 = automatisch anhand des Textes; sonst 80–500 GUI-Pixel.
+  button-width: 0
+  button-min-width: 180
+  button-max-width: 360
+  align-button-widths: true
+  # Bei eigenen PNGs: gerundete Grafik; native Klickfläche bleibt rechteckig.
+  rounded-buttons: false
   button-style: minecraft
-  # Ausgleich für Minecraft-Warnsymbol rechts vom feststehenden Titel.
   title-warning-offset: 24
-  # sans, serif, mono oder custom. Größen: 8, 10, 12, 14, 16.
+  # Eigene IDs entsprechen dem Dateinamen ohne .ttf/.otf.
   font-family: sans
   font-size: 12
   layout: list
@@ -47,9 +49,29 @@ menu:
 text:
   shadow: true
   shadow-color: '#24180E'
+hover:
+  enabled: false
+  text: |-
+    {name}
+    Status: {status}
+    Ziel: {target}
+prefix:
+  enabled: false
+  text: '{players} Spieler'
+  placeholderapi: true
+news:
+  enabled: true
+  back: '← Zurück'
+  connect: Server betreten
+# Optional mehrere direkte HTTPS-TTF/OTF-Links, z.B.:
+# fonts:
+#   meine_schrift:
+#     url: 'https://example.org/MeineSchrift.ttf'
+#     refresh: false
+# Alternativ beliebige Dateien in fonts/ im Pluginordner ablegen.
+fonts: {}
+# Bisheriger Einzellink bleibt als Schrift-ID custom unterstützt.
 font:
-  # Direkter HTTPS-Link zu einer TTF/OTF, keine Webseite/CSS/ZIP.
-  # Alternativ: pack/assets/serverhub/fonts/custom.ttf selbst ablegen.
   url: ''
   refresh: false
 buttons:
@@ -58,21 +80,18 @@ buttons:
     font-size: 10
     font-family: ''
     color: '#FFF4D6'
-    # Hintergrundtönung wirkt nur mit menu.button-style: wood.
     background-color: '#FFFFFF'
   next:
     width: 140
     font-size: 10
     font-family: ''
     color: '#FFF4D6'
-    # Hintergrundtönung wirkt nur mit menu.button-style: wood.
     background-color: '#FFFFFF'
   close:
     width: 140
     font-size: 10
     font-family: ''
     color: '#FFF4D6'
-    # Hintergrundtönung wirkt nur mit menu.button-style: wood.
     background-color: '#FFFFFF'
 integration:
   servernavigator: true
@@ -84,10 +103,24 @@ shift-f-hint:
 hotbar-icon:
   enabled: false
   slot: 8
-# Pro Ziel: name, color, font-size, font-family, permission, description,
-# hidden, order, status-override und sleep-motd-contains.
-# Leere font-family übernimmt menu.font-family.
-# status-override: auto|online|offline|sleeping.
-# Paper-Pause wird automatisch erkannt; 0 Spieler allein ist kein Schlafsignal.
-# Für andere Schlaf-Proxys: eindeutige sleep-motd-contains-Kennung eintragen.
+# Neue Velocity-Ziele werden automatisch ergänzt. Pro Ziel z.B.:
+# challenges:
+#   name: Challenges
+#   color: '#FFFFFF'
+#   font-size: 12
+#   font-family: ''
+#   width: 240
+#   background: challenges
+#   background-tint: '#FFFFFF'
+#   rounded: true
+#   prefix: '{players} Spieler'
+#   hover-enabled: false
+#   hover: ''
+#   amp-instance: 'AMP-Instanz-ID oder Name'
+#   status-override: auto
+#   sleep-motd-contains: []
+#   permission: ''
+#   description: []
+#   hidden: false
+#   order: 0
 servers: {}
