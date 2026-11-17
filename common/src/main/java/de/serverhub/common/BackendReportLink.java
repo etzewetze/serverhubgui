@@ -13,6 +13,7 @@ public record BackendReportLink(String target,String host,int port,boolean https
     }
     public URI endpoint(String peerHost){return endpoint(host.equals("auto")?peerHost:host,port,https,target);}
     private static URI endpoint(String host,int port,boolean https,String target){
+        if(host==null||host.isBlank()||!host.matches("[A-Za-z0-9.:%\\[\\]-]+"))throw new IllegalArgumentException("Ungültiger Statushost");
         try {var uri=new URI(https?"https":"http",null,host,port,"/serverhub-status","target="+target,null);if(uri.getHost()==null)throw new IllegalArgumentException("Ungültiger Statushost");return uri;}
         catch(URISyntaxException e){throw new IllegalArgumentException("Ungültiger Statushost",e);}
     }

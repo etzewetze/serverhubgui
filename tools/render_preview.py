@@ -2,6 +2,7 @@
 """Design reference using the pack's exact glyph advances; not an in-game screenshot."""
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageChops
+import random
 
 ROOT=Path(__file__).resolve().parents[1]
 A=ROOT/'resource-pack/assets/serverhub'
@@ -33,18 +34,26 @@ def main():
         image.alpha_composite(middle.resize((width-left.width-right.width,middle.height)),(left.width,0));image.alpha_composite(right,(width-right.width,0))
         if tint!='#FFFFFF':image=ImageChops.multiply(image,Image.new('RGBA',image.size,tint))
         canvas.alpha_composite(image,(x,y))
-    canvas=Image.new('RGBA',(640,350),'#20242A');draw=ImageDraw.Draw(canvas)
+    def native_button(canvas,width,x,y):
+        image=Image.new('RGBA',(width,20),'#7D7D7D');d=ImageDraw.Draw(image);rng=random.Random(25)
+        for yy in range(1,19):
+            for xx in range(1,width-1):
+                value=rng.randrange(111,132);d.point((xx,yy),fill=(value,value,value,255))
+        d.rectangle((0,0,width-1,19),outline='#161616');d.line((1,1,width-2,1),fill='#C6C6C6');d.line((1,1,1,18),fill='#ACACAC');d.line((1,18,width-2,18),fill='#4D4D4D');d.line((width-2,2,width-2,18),fill='#505050')
+        canvas.alpha_composite(image,(x,y))
+    canvas=Image.new('RGBA' ,(640,350),'#20242A');draw=ImageDraw.Draw(canvas)
     caption=ImageFont.truetype(str(ROOT/'art-source/ServerHubSans-Bold.ttf'),9)
     for col,(family,title)in enumerate((('sans','Sans'),('serif','Serif'),('mono','Mono'))):
         center=110+210*col
         draw.text((center,8),title,font=caption,anchor='mt',fill='#D9DDE4')
         text='Serverauswahl';roll=max(48,measure(text,family,12)+24)
         background(canvas,'scroll',roll,center-roll//2,30);label(canvas,text,family,12,center,41,'#3D2817')
+        warning_x=center+roll//2+4;draw.rectangle((warning_x,35,warning_x+19,54),fill='#707070',outline='#222222');draw.polygon(((warning_x+10,38),(warning_x+3,50),(warning_x+17,50)),fill='#F6D957');draw.line((warning_x+10,42,warning_x+10,46),fill='#333333');draw.point((warning_x+10,48),fill='#333333')
         for i,(name,color,state)in enumerate([('Lobby','#A8E091','#62D86B'),('Survival','#F2C06D','#FFD15C'),('Creative','#9FDCF0','#F05A56'),('Event','#FFF4D6','#62D86B'),('Kalle','#F0A79A','#A7ADB4')]):
             x=center-70;y=82+i*25
-            background(canvas,'button',140,x,y);label(canvas,fit(name,family,12,100),family,12,center,y+6,color)
+            native_button(canvas,140,x,y);label(canvas,fit(name,family,12,100),family,12,center,y+6,color)
             draw.ellipse((x+10,y+7,x+15,y+12),fill=state)
-        background(canvas,'button',140,center-70,226);label(canvas,'Schließen',family,10,center,232,'#FFF4D6')
+        native_button(canvas,140,center-70,226);label(canvas,'Schließen',family,10,center,232,'#FFF4D6')
     # Schematic hotbar documents intended anchoring, not an actual client HUD.
     for col in range(9):
         x=230+col*20

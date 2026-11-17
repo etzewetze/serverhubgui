@@ -195,9 +195,10 @@ public final class ServerHubVelocity {
     private void pushMenus(){if(menus.current()!=null)for(Player player:proxy.getAllPlayers())sendMenu(player);}
     private void scheduleDiscovery(){
         if(discoveryTask!=null)discoveryTask.cancel();
-        discoveryTask=proxy.getScheduler().buildTask(this,()->{
+        discoveryTask=proxy.getScheduler().buildTask(this,this::refreshStatuses).delay(Duration.ofSeconds(1)).repeat(Duration.ofSeconds(menus.current().options().number("status.ping-interval-seconds"))).schedule();
+    }
+    void refreshStatuses(){
             try{
-                var registered=proxy.getAllServers();
                 refreshRegistered();
             }catch(IOException e){logger.warn("Neue Server konnten nicht in servers.yml ergänzt werden: {}",e.getMessage());}
             var menu=menus.current();
@@ -207,7 +208,6 @@ public final class ServerHubVelocity {
                 return server.ping(PingOptions.builder().virtualHost(receiver.link(server.getServerInfo().getName(),menu.options()).virtualHost()).timeout(Duration.ofMillis(menu.options().number("status.timeout-ms"))).build());
             });
             pushMenus();
-        }).delay(Duration.ofSeconds(1)).repeat(Duration.ofSeconds(menus.current().options().number("status.ping-interval-seconds"))).schedule();
     }
     void refreshRegistered()throws IOException {
         if(menus.discover(proxy.getAllServers().stream().map(s->s.getServerInfo().getName()).toList()))statusMonitor.configure(menus.current());

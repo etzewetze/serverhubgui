@@ -174,4 +174,21 @@ class ProxyPackLifecycleTest {
         var packet=Wire.decode(bytes.getAllValues().getLast());var snapshot=de.serverhub.common.MenuSnapshot.decode(packet.values());
         assertTrue(snapshot.options().flag("runtime.waiting"));assertEquals(de.serverhub.common.MenuSnapshot.Status.STARTING,snapshot.entries().getLast().status());
     }
+    @Test void aSleepingBackendWithoutPlayersPushesYellowWithoutAnotherHandshakeOrPackOffer()throws Exception{
+        setup("https://example.org/serverhub.zip");connect();status(packId,PlayerResourcePackStatusEvent.Status.SUCCESSFUL);var connection=backend();var lobby=connection.getServer();var target=registered("survival");
+        when(proxy.getAllServers()).thenReturn(List.of(lobby,target));when(proxy.getServer("survival")).thenReturn(Optional.of(target));catalog(connection);
+        var ping=ServerPing.builder().version(new ServerPing.Version(774,"Paper")).description(net.kyori.adventure.text.Component.text("Online")).build();
+        when(lobby.ping(any(PingOptions.class))).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(ping));when(target.ping(any(PingOptions.class))).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(ping));
+        when(proxy.getAllPlayers()).thenReturn(List.of(player));
+        var updates=new java.util.concurrent.LinkedBlockingQueue<de.serverhub.common.MenuSnapshot>();
+        doAnswer(call->{var packet=Wire.decode(call.getArgument(1,byte[].class));if(packet.type()==Wire.Type.MENU)updates.add(de.serverhub.common.MenuSnapshot.decode(packet.values()));return true;}).when(connection).sendPluginMessage(any(),any());
+        plugin.refreshStatuses();var options=ArgumentCaptor.forClass(PingOptions.class);verify(target).ping(options.capture());
+        var bootstrap=de.serverhub.common.BackendReportLink.fromVirtualHost(options.getValue().getVirtualHost()).orElseThrow();assertEquals("survival",bootstrap.target());
+        try(var reporter=new de.serverhub.common.BackendReporter(directory.resolve("backend-with-no-players"),message->{})){
+            reporter.sample(true);reporter.configure(bootstrap,"127.0.0.1");long end=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(5);boolean yellow=false;
+            while(System.nanoTime()<end&&!yellow){var snapshot=updates.poll(1,java.util.concurrent.TimeUnit.SECONDS);yellow=snapshot!=null&&snapshot.entries().stream().anyMatch(e->e.target().equals("survival")&&e.status()==de.serverhub.common.MenuSnapshot.Status.SLEEPING);}
+            assertTrue(yellow,"Backend report must update the visible snapshot even though the Minecraft ping stays green");
+        }
+        verify(player,times(1)).sendResourcePackOffer(any());
+    }
 }
