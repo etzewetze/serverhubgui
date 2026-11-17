@@ -101,7 +101,8 @@ public final class CentralMenuConfig {
             +"# menu.layout: list|grid; menu.navigation: scroll|pages. Reload: /serverhubproxy reload\n"
             +"# Schriften: eigene TTF/OTF in fonts/; Dateiname ist Schrift-ID. URLs und IDs unter fonts in dieser Datei.\n"
             +"# Statusintervall: status.ping-interval-seconds (Standard 1). Backend-Meldungen: status.report-port (8125/TCP zwischen Backend und Proxy).\n"
-            +"# Gelb: Paper-Pause, ServerNavigator-Start oder eindeutige Schlaf-Kennung. Leere Server sind nicht automatisch schlafend.\n"
+            +"# AMP-Schlafmodus separat in amp.yml aktivieren; abweichende Namen pro Ziel mit amp-instance zuordnen.\n"
+            +"# Gelb: AMP-/Paper-Schlaf, ServerNavigator-Start oder eindeutige Schlaf-Kennung. Leere Server sind nicht automatisch schlafend.\n"
             +"# Entfernte Ziele bleiben als Einstellungen erhalten, werden aber nicht angezeigt.\n";
         Path temp=Files.createTempFile(file.getParent(),"servers-",".tmp");
         try{

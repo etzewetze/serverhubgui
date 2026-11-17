@@ -191,4 +191,28 @@ class ProxyPackLifecycleTest {
         }
         verify(player,times(1)).sendResourcePackOffer(any());
     }
+    void packet(ServerConnection connection,UUID nonce,Wire.Type type,String... values){
+        var event=mock(PluginMessageEvent.class);when(event.getIdentifier()).thenReturn(MinecraftChannelIdentifier.from(Wire.CHANNEL));when(event.getSource()).thenReturn(connection);when(event.getData()).thenReturn(Wire.encode(type,nonce,values));plugin.pluginMessage(event);
+    }
+    @Test void newsNeedsProxyPermissionAndTheCurrentBackendNonceAndReturnsOnlyVisibleContent()throws Exception{
+        setup("");connect();status(packId,PlayerResourcePackStatusEvent.Status.SUCCESSFUL);var connection=backend();var lobby=connection.getServer();var target=registered("challenges");when(proxy.getAllServers()).thenReturn(List.of(lobby,target));plugin.refreshRegistered();UUID nonce=UUID.randomUUID();packet(connection,nonce,Wire.Type.HELLO);
+        packet(connection,nonce,Wire.Type.NEWS_CHANGE,"start","challenges","Neue Welt");assertFalse(new NewsStore(directory).active("challenges"));
+        when(player.hasPermission("serverhub.news")).thenReturn(true);packet(connection,UUID.randomUUID(),Wire.Type.NEWS_CHANGE,"start","challenges","Gefälscht");assertFalse(new NewsStore(directory).active("challenges"));
+        when(proxy.getAllPlayers()).thenReturn(List.of(player));clearInvocations(connection);packet(connection,nonce,Wire.Type.NEWS_CHANGE,"start","challenges","Neue Welt");assertEquals("Neue Welt",new NewsStore(directory).get("challenges"));
+        var messages=ArgumentCaptor.forClass(byte[].class);verify(connection,atLeastOnce()).sendPluginMessage(any(),messages.capture());var snapshot=MenuSnapshot.decode(Wire.decode(messages.getAllValues().getLast()).values());assertTrue(snapshot.entries().stream().filter(e->e.target().equals("challenges")).findFirst().orElseThrow().style().news());assertEquals("lobby",snapshot.options().text("runtime.server"));
+        clearInvocations(connection);packet(connection,nonce,Wire.Type.NEWS_VIEW,"challenges");verify(connection).sendPluginMessage(any(),messages.capture());var content=Wire.decode(messages.getValue());assertEquals(Wire.Type.NEWS_CONTENT,content.type());assertEquals(List.of("challenges","Neue Welt"),content.values());
+        when(player.getPermissionValue("serverhub.connect.challenges")).thenReturn(com.velocitypowered.api.permission.Tristate.FALSE);clearInvocations(connection);packet(connection,nonce,Wire.Type.NEWS_VIEW,"challenges");verify(connection).sendPluginMessage(any(),messages.capture());assertEquals(Wire.Type.RESULT,Wire.decode(messages.getValue()).type());
+        when(player.getPermissionValue("serverhub.connect.challenges")).thenReturn(com.velocitypowered.api.permission.Tristate.UNDEFINED);packet(connection,nonce,Wire.Type.NEWS_CHANGE,"stop","challenges");assertFalse(new NewsStore(directory).active("challenges"));
+    }
+    @Test void ampSleepIsInTheActualMenuEvenWhenMinecraftPingAndPaperHeartbeatAreAwake()throws Exception{
+        setup("https://example.org/serverhub.zip");connect();status(packId,PlayerResourcePackStatusEvent.Status.SUCCESSFUL);var connection=backend();var lobby=connection.getServer();var survival=registered("survival");when(proxy.getAllServers()).thenReturn(List.of(lobby,survival));when(proxy.getServer("survival")).thenReturn(Optional.of(survival));
+        var http=com.sun.net.httpserver.HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);http.createContext("/API/",exchange->{String result=exchange.getRequestURI().getPath().endsWith("Login")?"{\"success\":true,\"sessionID\":\"fixture\"}":"[{\"InstanceID\":\"survival\",\"AppState\":50}]";exchange.getRequestBody().readAllBytes();byte[] bytes=result.getBytes(java.nio.charset.StandardCharsets.UTF_8);exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);exchange.close();});http.start();
+        try{
+            Files.writeString(directory.resolve("amp.yml"),"enabled: true\nurl: 'http://127.0.0.1:"+http.getAddress().getPort()+"/'\nusername: fixture\n");plugin.reload();var ampField=ServerHubVelocity.class.getDeclaredField("amp");ampField.setAccessible(true);((AmpStatusSource)ampField.get(plugin)).poll();
+            var monitorField=ServerHubVelocity.class.getDeclaredField("statusMonitor");monitorField.setAccessible(true);((ServerStatusMonitor)monitorField.get(plugin)).backend("survival",new BackendStatus(UUID.randomUUID(),1,false));
+            var awake=ServerPing.builder().version(new ServerPing.Version(774,"Paper")).description(net.kyori.adventure.text.Component.text("Online")).build();when(lobby.ping(any(PingOptions.class))).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(awake));when(survival.ping(any(PingOptions.class))).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(awake));plugin.refreshStatuses();
+            catalog(connection);var bytes=ArgumentCaptor.forClass(byte[].class);verify(connection,times(3)).sendPluginMessage(any(),bytes.capture());var menu=MenuSnapshot.decode(Wire.decode(bytes.getAllValues().getLast()).values());assertEquals(MenuSnapshot.Status.SLEEPING,menu.entries().stream().filter(e->e.target().equals("survival")).findFirst().orElseThrow().status());
+        }finally{http.stop(0);}
+        verify(player,times(1)).sendResourcePackOffer(any());
+    }
 }

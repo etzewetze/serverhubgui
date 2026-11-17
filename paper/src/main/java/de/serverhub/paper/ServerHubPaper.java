@@ -97,7 +97,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     }
     private Settings localSettings(Session session){
         var menu=localDelivery.state().menu();
-        var entries=menu.servers().stream().filter(server->!server.hidden()&&server.entry().target().equals("local")).map(server->{var e=server.entry();int online=Bukkit.getOnlinePlayers().size(),max=Bukkit.getMaxPlayers();String prefix=MenuTemplate.render(e.style().prefix().isBlank()?menu.options().text("prefix.text"):e.style().prefix(),e.name(),e.target(),MenuSnapshot.Status.ONLINE,online,max);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),MenuSnapshot.Status.ONLINE,e.family(),e.style().live(online,max,prefix,localNews.active(e.target())));}).toList();
+        var entries=menu.servers().stream().filter(server->!server.hidden()&&server.entry().target().equals("local")).map(server->{var e=server.entry();int online=Bukkit.getOnlinePlayers().size(),max=Bukkit.getMaxPlayers();String prefix=MenuTemplate.prefix(e.style().prefix().isBlank()?menu.options().text("prefix.text"):e.style().prefix(),e.name(),e.target(),MenuSnapshot.Status.ONLINE,online,max);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),MenuSnapshot.Status.ONLINE,e.family(),e.style().live(online,max,prefix,localNews.active(e.target())));}).toList();
         return Settings.fromNetwork(new MenuSnapshot(menu.revision(),menu.options(),entries,session.localFonts,session.localUi));
     }
     private void offerLocal(Player player,Session session){

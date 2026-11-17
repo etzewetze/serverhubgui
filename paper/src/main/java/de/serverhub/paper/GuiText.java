@@ -76,7 +76,8 @@ final class GuiText {
     Component server(Settings.Entry entry,MenuOptions options,int width){
         String family=entry.family().isBlank()?options.text("menu.font-family"):entry.family(),background=entry.style().background().isBlank()?options.text("menu.button-style"):entry.style().background();
         boolean news=entry.style().news()&&options.flag("news.enabled"),rounded=entry.style().rounded()||options.flag("menu.rounded-buttons");String text=fit(label(entry,options),family,entry.size(),width-(options.flag("status.enabled")?40:16)-(news?16:0));int w=fonts.width(text,family,entry.size());var c=new Canvas();c.at(-4);
-        var skin=ui.skin(background,rounded);if(skin!=null)c.skin(skin,width,Settings.color(entry.style().tint()));else if(background.equals("wood"))c.background(1,width,Settings.color(entry.style().tint()));
+        TextColor tint=Settings.color(entry.style().tint().equalsIgnoreCase("#FFFFFF")?options.text("menu.button-background-color"):entry.style().tint());
+        var skin=ui.skin(background,rounded);if(skin!=null)c.skin(skin,width,tint);else if(background.equals("wood"))c.background(1,width,tint);
         if(options.flag("status.enabled")){int rgb=switch(entry.status()){case ONLINE->0x62D86B;case OFFLINE->0xF05A56;case SLEEPING,STARTING->0xFFD15C;case UNKNOWN->0xA7ADB4;};c.at(6);c.value=c.value.append(Component.text("\uE300").font(Key.key("serverhub:status")).color(TextColor.color(rgb)));c.cursor+=7;}
         c.text(text,family,entry.size(),-4+(width-w)/2,entry.color(),options);
         if(news){c.at(width-20);c.value=c.value.append(Component.text(ui.icons()?"\uE540":"!").font(Key.key(ui.icons()?"serverhub:icons":"serverhub:label_sans_10")).color(TextColor.color(0xFFD15C)));c.cursor+=ui.icons()?11:fonts.width("!","sans",10);}

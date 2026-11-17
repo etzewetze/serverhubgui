@@ -53,6 +53,8 @@ class UniversalJarIT {
             Object built=loader.loadClass("de.serverhub.common.PackWorkspace").getMethod("prepare",Path.class,byte[].class,options).invoke(null,directory,bundled,defaults);
             assertArrayEquals(bundled,(byte[])built.getClass().getMethod("bytes").invoke(built));
             assertNotNull(built.getClass().getMethod("fonts").invoke(built));
+            assertNotNull(built.getClass().getMethod("ui").invoke(built));
+            assertNotNull(loader.loadClass("de.serverhub.libs.gson.JsonParser"));
         }
     }
     @Test void jarIncludesBothDescriptorsAndTheExactPackButNoServerApis()throws Exception{

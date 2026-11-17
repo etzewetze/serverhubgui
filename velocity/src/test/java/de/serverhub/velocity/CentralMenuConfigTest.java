@@ -48,4 +48,11 @@ class CentralMenuConfigTest {
         var config=new CentralMenuConfig(directory);config.load(names);
         assertEquals(256,config.load(names).servers().size());
     }
+    @Test void twoFiveDefaultsMigrateAndNamedSourcesAndServerOverridesSurviveDiscovery()throws Exception {
+        String previous="config-version: 3\nmenu:\n  button-width: 140\n  title-padding: 12\n  title-max-width: 320\nfonts:\n  first_font:\n    url: 'https://example.org/first.ttf'\n    refresh: false\n  second-font: 'https://example.org/second.otf'\nservers:\n  challenges:\n    width: 250\n    background: my_image.png\n    rounded: true\n    amp-instance: unique-amp-id\n    hover-enabled: false\n    prefix: '{players} Gäste'\n";
+        Files.writeString(directory.resolve("servers.yml"),previous);var state=new CentralMenuConfig(directory).load(List.of("challenges","lobby"));
+        assertEquals(previous,Files.readString(directory.resolve("servers-v2.5-backup.yml")));assertEquals(0,state.options().number("menu.button-width"));assertEquals(48,state.options().number("menu.title-padding"));assertEquals(400,state.options().number("menu.title-max-width"));assertEquals(2,state.fontSources().size());
+        var target=state.servers().stream().filter(s->s.entry().target().equals("challenges")).findFirst().orElseThrow();assertEquals("unique-amp-id",target.ampInstance());assertEquals(250,target.entry().style().width());assertEquals("my_image",target.entry().style().background());assertTrue(target.entry().style().rounded());assertFalse(target.entry().style().hoverEnabled());
+        assertTrue(Files.readString(directory.resolve("servers.yml")).contains("button-min-width: 180"));
+    }
 }
