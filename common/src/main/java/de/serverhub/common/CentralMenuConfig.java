@@ -88,7 +88,8 @@ public final class CentralMenuConfig {
             +"# Entfernte Ziele bleiben als Einstellungen erhalten, werden aber nicht angezeigt.\n";
         Path temp=Files.createTempFile(file.getParent(),"servers-",".tmp");
         try{
-            Files.writeString(temp,header+new Yaml(options).dump(root),StandardCharsets.UTF_8);
+            var ordered=new LinkedHashMap<String,Object>();for(String key:List.of("config-version","status"))if(root.containsKey(key))ordered.put(key,root.get(key));root.forEach(ordered::putIfAbsent);
+            Files.writeString(temp,header+new Yaml(options).dump(ordered),StandardCharsets.UTF_8);
             if(before==null?Files.exists(file):!Files.exists(file)||!Arrays.equals(before,Files.readAllBytes(file)))throw new IOException("servers.yml wurde gleichzeitig bearbeitet; bitte erneut laden");
             try{Files.move(temp,file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}
             catch(AtomicMoveNotSupportedException e){Files.move(temp,file,StandardCopyOption.REPLACE_EXISTING);}
