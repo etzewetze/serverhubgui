@@ -1,15 +1,18 @@
 name: ServerHubPaper
-version: 2.5.0
+version: 2.5.1
 main: de.serverhub.paper.ServerHubPaper
 api-version: '26.3'
 description: Stein-/Holz-Servermenü mit Pflichtpaket über ServerHub-Velocity
 authors: [ServerHub]
 commands:
   extramenu:
-    aliases: [extramenü, extramen, serverhub]
+    aliases: [extramenü, extramen, serverhub, sh]
     description: Serverauswahl öffnen oder mit reload neu laden
-    usage: /extramenu [reload]
+    usage: /extramenu [reload|news start [--server Ziel] Nachricht|news stop [--server Ziel]]
+softdepend: [PlaceholderAPI]
 permissions:
+  serverhub.news:
+    default: op
   serverhub.use:
     default: true
   serverhub.reload:

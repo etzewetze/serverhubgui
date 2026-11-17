@@ -17,7 +17,7 @@ class GuiTextTest {
             result.add(new Run(text.content(),font,cursor[0],component.color()));
             for(char code:text.content().toCharArray()){
                 if(font.equals("serverhub:space"))cursor[0]+=(code>=0xF200?1:-1)*(1<<(code&0xFF));
-                else if(font.equals("serverhub:gui"))cursor[0]+=code==0xF0FF?-1:code==0xE400||code==0xE402?13:code==0xE401||code==0xE411||code==0xE421?2:5;
+                else if(font.equals("serverhub:gui"))cursor[0]+=code==0xF0FF?-1:code==0xE400||code==0xE402?41:code==0xE401||code==0xE411||code==0xE421?2:5;
                 else if(font.equals("serverhub:status"))cursor[0]+=7;
                 else if(font.startsWith("serverhub:label_")){String[] p=font.substring(16).split("_");cursor[0]+=book.advance(p[0],Integer.parseInt(p[1]),code);}
             }
@@ -30,14 +30,14 @@ class GuiTextTest {
         for(String title:List.of("Menü","Unsere lange Serverauswahl")){
             var runs=runs(gui.heading(title,NamedTextColor.BLACK,options));int total=finalWidth(runs);
             Run label=runs.stream().filter(r->r.font().equals("serverhub:label_sans_12")).findFirst().orElseThrow();int text=fonts().width(title,"sans",12);
-            assertTrue(Math.abs(label.x()*2+text-total)<=1);assertEquals(Math.max(48,text+24),total);
+            assertTrue(Math.abs(label.x()*2+text-total)<=1);assertEquals(Math.max(48,text+96),total);
             if(shortWidth==0)shortWidth=total;else assertTrue(total>shortWidth);
         }
     }
     @Test void everyStatusDotUsesOneLeftEdgeRegardlessOfNameOrFontSize()throws Exception {
         var gui=new GuiText();var options=MenuOptions.defaults();
         for(var entry:List.of(new Settings.Entry("a","Lobby","a","",NamedTextColor.WHITE,8,List.of(),MenuSnapshot.Status.ONLINE,"serif"),new Settings.Entry("b","Überlebenswelt","b","",NamedTextColor.WHITE,16,List.of(),MenuSnapshot.Status.STARTING,"mono"))){
-            var runs=runs(gui.server(entry,options));Run dot=runs.stream().filter(r->r.font().equals("serverhub:status")).findFirst().orElseThrow();assertEquals(6,dot.x());assertEquals(132,finalWidth(runs));
+            var runs=runs(gui.server(entry,options));Run dot=runs.stream().filter(r->r.font().equals("serverhub:status")).findFirst().orElseThrow();assertEquals(6,dot.x());assertEquals(172,finalWidth(runs));
             assertTrue(runs.stream().anyMatch(r->r.font().endsWith("_shadow")));
         }
     }

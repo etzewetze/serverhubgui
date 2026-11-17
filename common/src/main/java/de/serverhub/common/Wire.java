@@ -9,7 +9,7 @@ public final class Wire {
     public static final int MAX_BYTES = 32700;
     public static final int MAX_SERVERS = 256;
     private static final int MAGIC = 0x53483201;
-    public enum Type { HELLO, STATE, CONNECT, RESULT, CATALOG, MENU, REPORT_LINK }
+    public enum Type { HELLO, STATE, CONNECT, RESULT, CATALOG, MENU, REPORT_LINK, NEWS_CHANGE, NEWS_VIEW, NEWS_CONTENT }
     public record Packet(Type type, UUID nonce, List<String> values) {
         public Packet { values = List.copyOf(values); }
         public String value(int index) { return values.get(index); }
@@ -53,8 +53,9 @@ public final class Wire {
         }
         if (in.available() != 0) throw new IOException("Trailing data");
         if (type == Type.STATE && !Set.of("true", "false").contains(fields.getFirst())) throw new IOException("Invalid state");
+        if(type==Type.NEWS_CHANGE&&count<2||type==Type.NEWS_CONTENT&&count<1)throw new IOException("Incomplete news packet");
         return new Packet(type, nonce, fields);
     }
     public static boolean validTarget(String name) { return name != null && name.matches("[A-Za-z0-9_.-]{1,64}"); }
-    private static boolean variable(Type type){return type==Type.CATALOG||type==Type.MENU;}
+    private static boolean variable(Type type){return type==Type.CATALOG||type==Type.MENU||type==Type.NEWS_CHANGE||type==Type.NEWS_CONTENT;}
 }

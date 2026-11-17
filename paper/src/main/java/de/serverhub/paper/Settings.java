@@ -8,12 +8,14 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boolean icon, int slot,
-                boolean hint, int hintInterval, int handshakeTimeout, boolean automatic, de.serverhub.common.FontBook fonts) {
+                boolean hint, int hintInterval, int handshakeTimeout, boolean automatic, de.serverhub.common.FontBook fonts, de.serverhub.common.UiCatalog ui) {
     record Entry(String key, String name, String target, String permission, TextColor color, int size, List<String> description,
-                 de.serverhub.common.MenuSnapshot.Status status, String family) {
+                 de.serverhub.common.MenuSnapshot.Status status, String family, de.serverhub.common.ServerStyle style) {
         Entry(String key,String name,String target,String permission,TextColor color,int size,List<String> description){
-            this(key,name,target,permission,color,size,description,de.serverhub.common.MenuSnapshot.Status.UNKNOWN,"");
+            this(key,name,target,permission,color,size,description,de.serverhub.common.MenuSnapshot.Status.UNKNOWN,"",de.serverhub.common.ServerStyle.defaults());
         }
+        Entry(String key,String name,String target,String permission,TextColor color,int size,List<String> description,de.serverhub.common.MenuSnapshot.Status status,String family){this(key,name,target,permission,color,size,description,status,family,de.serverhub.common.ServerStyle.defaults());}
+        Entry prefix(String text){return new Entry(key,name,target,permission,color,size,description,status,family,style.prefix(text));}
     }
     private static final Pattern TARGET = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
     static Settings read(File file) throws Exception {
@@ -36,7 +38,7 @@ record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boole
         }
         return new Settings(y, List.copyOf(entries), size, y.getBoolean("hotbar-icon.enabled", false), slot,
             y.getBoolean("shift-f-hint.enabled", true), Math.clamp(y.getInt("shift-f-hint.interval-seconds", 1),1,2),
-            Math.max(10, y.getInt("proxy.handshake-timeout-seconds", 30)), y.getBoolean("server-discovery.enabled", true),de.serverhub.common.FontBook.empty());
+            Math.max(10, y.getInt("proxy.handshake-timeout-seconds", 30)), y.getBoolean("server-discovery.enabled", true),de.serverhub.common.FontBook.empty(),de.serverhub.common.UiCatalog.empty());
     }
     List<Entry> resolve(List<String> discovered) {
         if (!automatic) return entries;
@@ -64,9 +66,9 @@ record Settings(YamlConfiguration yaml, List<Entry> entries, int fontSize, boole
     static Settings fromNetwork(de.serverhub.common.MenuSnapshot snapshot){
         var y=new YamlConfiguration();var o=snapshot.options();
         de.serverhub.common.MenuOptions.DEFAULTS.keySet().forEach(key->y.set(key,o.typed(key)));
-        var entries=snapshot.entries().stream().map(e->new Entry(e.target(),e.name(),e.target(),e.permission(),color(e.color()),e.size(),e.description(),e.status(),e.family())).toList();
+        var entries=snapshot.entries().stream().map(e->new Entry(e.target(),e.name(),e.target(),e.permission(),color(e.color()),e.size(),e.description(),e.status(),e.family(),e.style())).toList();
         return new Settings(y,entries,o.number("menu.font-size"),o.flag("hotbar-icon.enabled"),o.number("hotbar-icon.slot"),
-            o.flag("shift-f-hint.enabled"),o.number("shift-f-hint.interval-seconds"),o.number("proxy.handshake-timeout-seconds"),false,snapshot.fonts());
+            o.flag("shift-f-hint.enabled"),o.number("shift-f-hint.interval-seconds"),o.number("proxy.handshake-timeout-seconds"),false,snapshot.fonts(),snapshot.ui());
     }
     de.serverhub.common.MenuOptions menuOptions(){
         var values=new LinkedHashMap<String,String>();

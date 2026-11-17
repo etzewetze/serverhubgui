@@ -9,8 +9,8 @@
     {
       "type": "bitmap",
       "file": "serverhub:gui/scroll_left.png",
-      "height": 30,
-      "ascent": 18,
+      "height": 32,
+      "ascent": 19,
       "chars": [
         ""
       ]
@@ -18,8 +18,8 @@
     {
       "type": "bitmap",
       "file": "serverhub:gui/scroll_mid.png",
-      "height": 30,
-      "ascent": 18,
+      "height": 32,
+      "ascent": 19,
       "chars": [
         ""
       ]
@@ -27,8 +27,8 @@
     {
       "type": "bitmap",
       "file": "serverhub:gui/scroll_right.png",
-      "height": 30,
-      "ascent": 18,
+      "height": 32,
+      "ascent": 19,
       "chars": [
         ""
       ]

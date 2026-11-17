@@ -1,0 +1,13 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "serverhub:gui/news.png",
+      "height": 10,
+      "ascent": 8,
+      "chars": [
+        ""
+      ]
+    }
+  ]
+}

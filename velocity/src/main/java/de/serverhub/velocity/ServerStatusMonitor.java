@@ -13,6 +13,7 @@ final class ServerStatusMonitor {
     private record Observation(Status state,long time) {}
     private record Report(BackendStatus value,long received,Set<UUID> retired){}
     private final ConcurrentMap<String,Observation> states=new ConcurrentHashMap<>();
+    private final ConcurrentMap<String,Integer> capacities=new ConcurrentHashMap<>();
     private final ConcurrentMap<String,Report> reports=new ConcurrentHashMap<>();
     private final Set<String> pending=ConcurrentHashMap.newKeySet();
     private final LongSupplier clock;
@@ -46,12 +47,13 @@ final class ServerStatusMonitor {
             try{
                 pingRequest.apply(server).orTimeout(config.options().number("status.timeout-ms"),TimeUnit.MILLISECONDS).whenComplete((ping,error)->{
                     pending.remove(name);
-                    if(Objects.equals(revision,expected))observe(name,classify(ping,error,settings));
+                    if(Objects.equals(revision,expected)){if(error==null&&ping!=null)ping.getPlayers().ifPresent(players->capacities.put(name,players.getMax()));observe(name,classify(ping,error,settings));}
                 });
             }catch(RuntimeException e){pending.remove(name);if(Objects.equals(revision,expected))observe(name,classify(null,e,settings));}
         }
-        states.keySet().retainAll(active);reports.keySet().retainAll(active);
+        states.keySet().retainAll(active);reports.keySet().retainAll(active);capacities.keySet().retainAll(active);
     }
+    int maximum(String target){return capacities.getOrDefault(target.toLowerCase(Locale.ROOT),-1);}
     private void observe(String name,Status state){var previous=states.put(name,new Observation(state,clock.getAsLong()));if(previous==null||previous.state!=state)changed.run();}
     private Report freshReport(String target,CentralMenuConfig.State config){
         if(!config.options().flag("status.backend-reports"))return null;

@@ -40,6 +40,9 @@ public final class ServerHubVelocity {
     private final Object reloadLock=new Object();
     private final NavigatorBridge navigator;
     private volatile FontBook currentFonts=FontBook.empty();
+    private volatile UiCatalog currentUi=UiCatalog.empty();
+    private NewsStore news;
+    private volatile AmpStatusSource amp;
     private final ExecutorService diagnostics=Executors.newVirtualThreadPerTaskExecutor();
     private record Link(String server,UUID nonce) {}
     private static final class Gate {
@@ -47,10 +50,11 @@ public final class ServerHubVelocity {
         final Player owner;
         final String sha,url;
         final FontBook fonts;
+        final UiCatalog ui;
         volatile ScheduledTask timeout;
         volatile MenuSnapshot lastMenu;
         long lastSwitch;
-        Gate(Player owner,PackData pack,String url,FontBook fonts){this.fonts=fonts;this.owner=owner;this.sha=pack.sha1();this.url=url;state=new PackGate(pack.id());}
+        Gate(Player owner,PackData pack,String url,FontBook fonts,UiCatalog ui){this.fonts=fonts;this.ui=ui;this.owner=owner;this.sha=pack.sha1();this.url=url;state=new PackGate(pack.id());}
         void cancel(){if(timeout!=null)timeout.cancel();}
     }
     @Inject public ServerHubVelocity(ProxyServer proxy,Logger logger,@DataDirectory Path directory){
@@ -80,19 +84,22 @@ public final class ServerHubVelocity {
             var candidate=new CentralMenuConfig(directory).load(proxy.getAllServers().stream().map(s->s.getServerInfo().getName()).toList());
             try(var bundled=getClass().getResourceAsStream("/serverhub-pack.zip")){
                 if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
-                PackWorkspace.prepare(directory,bundled.readAllBytes(),candidate.options());
+                PackWorkspace.prepare(directory,bundled.readAllBytes(),candidate.options(),candidate.fontSources());
             }
-            ProxySettings next=ProxySettings.read(directory);FontBook fonts=next.pack().fonts();
-            new MenuSnapshot(candidate.revision(),candidate.options(),candidate.servers().stream().filter(s->!s.hidden()).map(CentralMenuConfig.Server::entry).toList(),fonts).encode();
+            ProxySettings next=ProxySettings.read(directory);FontBook fonts=next.pack().fonts();UiCatalog ui=next.pack().ui();var ampConfig=AmpStatusSource.load(directory);var newsCandidate=new NewsStore(directory);
+            new MenuSnapshot(candidate.revision(),candidate.options(),candidate.servers().stream().filter(s->!s.hidden()).map(CentralMenuConfig.Server::entry).toList(),fonts,ui).encode();
             synchronized(this){
                 if(statusReceiver!=null&&(!statusReceiver.bind.equals(candidate.options().text("status.report-bind"))||statusReceiver.configuredPort!=candidate.options().number("status.report-port")))throw new IOException("Status-Bind oder Port geändert: Proxy vollständig neu starten");
                 if(host!=null&&settings!=null&&(settings.port()!=next.port()||!settings.bind().equals(next.bind())))throw new IOException("HTTP-Bind oder Port geändert: Proxy vollständig neu starten");
                 if(host==null&&next.http())host=new PackHost(next.bind(),next.port(),next.pack());else if(host!=null)host.update(next.pack());
-                menus.adopt(candidate);statusMonitor.configure(candidate);currentFonts=fonts;settings=next;retainHostedPacks();
+                menus.adopt(candidate);statusMonitor.configure(candidate);currentFonts=fonts;currentUi=ui;news=newsCandidate;settings=next;retainHostedPacks();
+                if(amp==null||!amp.config().equals(ampConfig)){if(amp!=null)amp.close();amp=new AmpStatusSource(ampConfig,logger::warn,this::pushMenus);}
                 if(statusReceiver==null&&candidate.options().flag("status.backend-reports"))try{statusReceiver=new BackendStatusReceiver(directory,candidate.options().text("status.report-bind"),candidate.options().number("status.report-port"),target->proxy.getServer(target).isPresent(),statusMonitor::backend);}
                 catch(IOException e){logger.warn("Backend-Statuskanal konnte nicht gestartet werden: {}. Status fällt auf Pings zurück; status.report-port in servers.yml prüfen.",e.getMessage());}
             }
             logger.info("ServerHub: Paketmodus {}, SHA-1 {}. pack/ ist die bearbeitbare Quelle; neue Paketversionen gelten für neue Netzwerkverbindungen.",next.mode(),next.pack().sha1());
+            logger.info("Schriften verfügbar: {}",String.join(", ",fonts.families()));if(Files.exists(directory.resolve("font-problems.txt")))logger.warn("Einige Schriften konnten nicht geladen werden; funktionierende Schriften bleiben aktiv. Details: font-problems.txt");
+            if(next.http())logger.info("Eigene Schriften/Grafiken werden per HTTP ausgeliefert. Pack-Port {} muss für Spieler erreichbar sein; /serverhubproxy packcheck prüft die erzeugte ZIP.",next.advertisedPort());
             if(started){scheduleDiscovery();for(Player player:proxy.getAllPlayers()){sendMenu(player);sendReportLink(player);}}
         }
     }
@@ -109,7 +116,7 @@ public final class ServerHubVelocity {
         String url;
         try{url=c.url(p.getVirtualHost().map(address->address.getHostString()).orElse(null));}
         catch(IllegalArgumentException e){logger.error("Paketadresse für {} ungültig: {}",p.getUsername(),e.getMessage());p.disconnect(kickText());return;}
-        Gate next=new Gate(p,c.pack(),url,currentFonts);
+        Gate next=new Gate(p,c.pack(),url,currentFonts,currentUi);
         gates.put(p.getUniqueId(),next);
         sendState(p);
         next.timeout=proxy.getScheduler().buildTask(this,()->{
@@ -165,6 +172,8 @@ public final class ServerHubVelocity {
             Link link=links.get(p.getUniqueId());
             if(link==null||!link.nonce().equals(packet.nonce())||!link.server().equals(backend.getServerInfo().getName()))return;
             if(packet.type()==Wire.Type.CONNECT)connect(p,packet.value(0));
+            else if(packet.type()==Wire.Type.NEWS_CHANGE)changeNews(p,NewsCommand.decode(packet.values()));
+            else if(packet.type()==Wire.Type.NEWS_VIEW)viewNews(p,packet.value(0));
         }catch(IOException|IllegalArgumentException e){logger.debug("Ungültige ServerHub-Nachricht verworfen");}
     }
     private void sendState(Player p){
@@ -190,10 +199,10 @@ public final class ServerHubVelocity {
     private void sendMenu(Player p,boolean force){
         var state=menus.current();if(state==null)return;
         boolean integrate=state.options().flag("integration.servernavigator");
-        var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=statusMonitor.status(s,state);if(integrate&&s.override().equals("auto"))status=navigator.status(e.target(),status);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family());}).toList();
-        var values=new LinkedHashMap<>(state.options().values());values.put("runtime.waiting",Boolean.toString(integrate&&navigator.waiting(p.getUniqueId())));
+        var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=statusMonitor.status(s,state);var source=amp;if(source!=null&&s.override().equals("auto"))status=source.status(s).orElse(status);if(integrate&&s.override().equals("auto"))status=navigator.status(e.target(),status);int online=proxy.getServer(e.target()).map(server->server.getPlayersConnected().size()).orElse(0),maximum=statusMonitor.maximum(e.target());String prefix=MenuTemplate.render(e.style().prefix().isBlank()?state.options().text("prefix.text"):e.style().prefix(),e.name(),e.target(),status,online,maximum);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family(),e.style().live(online,maximum,prefix,news!=null&&news.active(e.target())));}).toList();
+        var values=new LinkedHashMap<>(state.options().values());values.put("runtime.waiting",Boolean.toString(integrate&&navigator.waiting(p.getUniqueId())));values.put("runtime.server",p.getCurrentServer().map(server->server.getServerInfo().getName()).orElse(""));
         Gate gate=gates.get(p.getUniqueId());FontBook fonts=gate==null?currentFonts:gate.fonts;
-        try{var snapshot=new MenuSnapshot(state.revision(),new MenuOptions(values),entries,fonts);if(!force&&gate!=null&&snapshot.equals(gate.lastMenu))return;send(p,Wire.Type.MENU,snapshot.encode());if(gate!=null)gate.lastMenu=snapshot;}
+        try{var snapshot=new MenuSnapshot(state.revision(),new MenuOptions(values),entries,fonts,gate==null?currentUi:gate.ui);if(!force&&gate!=null&&snapshot.equals(gate.lastMenu))return;send(p,Wire.Type.MENU,snapshot.encode());if(gate!=null)gate.lastMenu=snapshot;}
         catch(IllegalArgumentException e){logger.warn("Zentrale Menükonfiguration kann nicht übertragen werden: {}",e.getMessage());}
     }
     private void pushMenus(){if(menus.current()!=null)for(Player player:proxy.getAllPlayers())sendMenu(player);}
@@ -206,6 +215,7 @@ public final class ServerHubVelocity {
                 refreshRegistered();
             }catch(IOException e){logger.warn("Neue Server konnten nicht in servers.yml ergänzt werden: {}",e.getMessage());}
             var menu=menus.current();
+            if(amp!=null)amp.refresh();
             if(menu.options().flag("status.enabled"))statusMonitor.refresh(proxy.getAllServers(),menu,server->{
                 var receiver=statusReceiver;
                 if(receiver==null||!menu.options().flag("status.backend-reports"))return server.ping();
@@ -240,10 +250,19 @@ public final class ServerHubVelocity {
             if(error!=null||result==null||!result.isSuccessful())send(p,Wire.Type.RESULT,"unavailable");
         });
     }
+    private void changeNews(Player player,NewsCommand operation){
+        if(!player.hasPermission("serverhub.news")||news==null||visibleServers(player).stream().noneMatch(s->s.entry().target().equalsIgnoreCase(operation.target()))){send(player,Wire.Type.RESULT,"denied");return;}
+        try{if(operation.start())news.start(operation.target(),operation.message());else news.stop(operation.target());send(player,Wire.Type.RESULT,operation.start()?"news-start":"news-stop");pushMenus();}catch(IOException e){logger.warn("Neuigkeiten konnten nicht gespeichert werden: {}",e.getMessage());send(player,Wire.Type.RESULT,"unavailable");}
+    }
+    private void viewNews(Player player,String target){
+        Gate gate=gates.get(player.getUniqueId());if(gate==null||!gate.state.ready()||!Wire.validTarget(target)||news==null||visibleServers(player).stream().noneMatch(s->s.entry().target().equalsIgnoreCase(target))){send(player,Wire.Type.RESULT,"denied");return;}
+        send(player,Wire.Type.NEWS_CONTENT,NewsCommand.content(target,news.get(target)));
+    }
     @Subscribe public void shutdown(ProxyShutdownEvent event){
         for(Gate g:gates.values())g.cancel();gates.clear();links.clear();
         if(host!=null)host.close();
         if(statusReceiver!=null)statusReceiver.close();
+        if(amp!=null)amp.close();
         if(discoveryTask!=null)discoveryTask.cancel();
         diagnostics.shutdownNow();
     }
@@ -251,7 +270,11 @@ public final class ServerHubVelocity {
         @Override public boolean hasPermission(Invocation i){return !(i.source() instanceof Player)||i.source().hasPermission("serverhub.proxy.reload");}
         @Override public void execute(Invocation i){
             if(!hasPermission(i))return;
-            if(i.arguments().length!=1){i.source().sendMessage(Component.text("/serverhubproxy reload | status | packcheck"));return;}
+            if(i.arguments().length>0&&i.arguments()[0].equalsIgnoreCase("news")){
+                if(i.source() instanceof Player player&&!player.hasPermission("serverhub.news")){i.source().sendMessage(Component.text("Keine News-Berechtigung."));return;}
+                try{var operation=NewsCommand.parse(i.arguments(),i.source() instanceof Player player?player.getCurrentServer().map(server->server.getServerInfo().getName()).orElse(""):"");if(proxy.getServer(operation.target()).isEmpty()||news==null)throw new IllegalArgumentException("Unbekanntes Ziel");if(operation.start())news.start(operation.target(),operation.message());else news.stop(operation.target());pushMenus();i.source().sendMessage(Component.text("Neuigkeiten aktualisiert."));}catch(Exception e){i.source().sendMessage(Component.text(e.getMessage(),NamedTextColor.RED));}return;
+            }
+            if(i.arguments().length!=1){i.source().sendMessage(Component.text("/serverhubproxy reload | status | packcheck | fonts | news"));return;}
             if(i.arguments()[0].equalsIgnoreCase("reload")) {
                 i.source().sendMessage(Component.text("Prüfe Konfiguration und packe Ressourcen …",NamedTextColor.YELLOW));
                 diagnostics.submit(()->{try{reload();i.source().sendMessage(Component.text("ServerHub-Proxy und Ressourcen neu geladen. Bei geändertem Paket neu verbinden.",NamedTextColor.GREEN));}
@@ -259,7 +282,9 @@ public final class ServerHubVelocity {
             }else if(i.arguments()[0].equalsIgnoreCase("status")){
                 var c=settings;
                 i.source().sendMessage(Component.text(c==null?"ServerHub-Konfiguration fehlerhaft.":"Paketpflicht aktiv; Modus "+c.mode()+"; SHA-1 "+c.pack().sha1()+"; Netzwerksitzungen "+gates.size()+"; zentrale Datei servers.yml; erfasste Ziele "+menus.current().servers().size()));
-                var state=menus.current();if(state!=null){i.source().sendMessage(Component.text("Statusintervall: "+state.options().number("status.ping-interval-seconds")+" s; Backend-Statuskanal: "+(statusReceiver==null?"nicht aktiv":statusReceiver.port()+"/TCP")));for(var server:state.servers())i.source().sendMessage(Component.text(statusMonitor.details(server,state)));}
+                var state=menus.current();if(state!=null){i.source().sendMessage(Component.text("Statusintervall: "+state.options().number("status.ping-interval-seconds")+" s; Backend-Statuskanal: "+(statusReceiver==null?"nicht aktiv":statusReceiver.port()+"/TCP")));if(amp!=null)i.source().sendMessage(Component.text(amp.diagnostic()));for(var server:state.servers())i.source().sendMessage(Component.text((amp==null?"":amp.status(server).map(value->"AMP="+value+" · ").orElse(""))+statusMonitor.details(server,state)));}
+            }else if(i.arguments()[0].equalsIgnoreCase("fonts")){
+                i.source().sendMessage(Component.text("Schrift-IDs: "+String.join(", ",currentFonts.families())+". Eigene TTF/OTF in fonts/; Probleme stehen in font-problems.txt."));
             }else if(i.arguments()[0].equalsIgnoreCase("packcheck")){
                 var c=settings;if(c==null){i.source().sendMessage(Component.text("ServerHub-Konfiguration fehlerhaft.",NamedTextColor.RED));return;}
                 String joiningHost=i.source() instanceof Player player?player.getVirtualHost().map(a->a.getHostString()).orElse(null):null;
@@ -273,6 +298,6 @@ public final class ServerHubVelocity {
                 });
             }
         }
-        @Override public List<String> suggest(Invocation i){return List.of("reload","status","packcheck");}
+        @Override public List<String> suggest(Invocation i){return List.of("reload","status","packcheck","fonts","news");}
     }
 }

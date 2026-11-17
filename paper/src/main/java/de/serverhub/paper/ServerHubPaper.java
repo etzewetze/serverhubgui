@@ -35,6 +35,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     private boolean proxyExpected;
     private LocalPackDelivery localDelivery;
     private BackendReporter backendReporter;
+    private NewsStore localNews;
     private static final class Session {
         final UUID nonce = UUID.randomUUID();
         final long joined = System.currentTimeMillis();
@@ -45,9 +46,12 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         PackGate localGate;
         PackData localPack;
         FontBook localFonts;
+        UiCatalog localUi;
         LocalPackDelivery.State localState;
         long lastOpen, lastSwitch;
         int menuPage;
+        String newsTarget;
+        List<Settings.Entry> rendered=List.of();
     }
     @Override public void onEnable() {
         saveDefaultConfig();
@@ -60,6 +64,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             gui=new GuiText();
             if(proxyExpected){backendReporter=new BackendReporter(getDataFolder().toPath(),getLogger()::warning);backendReporter.sample(getServer().isPaused());}
             if(!proxyExpected)try(var input=getResource("serverhub-pack.zip")){if(input==null)throw new java.io.IOException("Paket fehlt");localDelivery=new LocalPackDelivery(getDataFolder().toPath(),input.readAllBytes());}
+            if(!proxyExpected)localNews=new NewsStore(getDataFolder().toPath());
             getLogger().info(proxyExpected?"Netzwerkmodus: Menüeinstellungen werden automatisch vom Proxy übernommen.":"Eigenständiger Server: lokale servers.yml und pack/ aktiv; kein Proxy-Timeout.");
         }
         catch (Exception e) { getLogger().severe("ServerHub kann nicht starten: " + e.getMessage()); getServer().getPluginManager().disablePlugin(this); return; }
@@ -85,15 +90,15 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     private Component message(Player p,String key){String fallback=MenuOptions.defaults().text("messages."+key);return text(effective(p).yaml().getString("messages."+key,fallback==null?"&cServerHub: "+key:fallback));}
     private void startSession(Player p) {
         Session session=new Session();sessions.put(p.getUniqueId(),session);
-        if(!proxyExpected){session.acknowledged=true;session.localState=localDelivery.state();session.localPack=session.localState.pack();try{session.localFonts=session.localPack.fonts();session.central=localSettings(session);}catch(java.io.IOException e){p.kick(text("&cLokale Paketdaten ungültig."));return;}session.localGate=new PackGate(session.localPack.id());
+        if(!proxyExpected){session.acknowledged=true;session.localState=localDelivery.state();session.localPack=session.localState.pack();try{session.localFonts=session.localPack.fonts();session.localUi=session.localPack.ui();session.central=localSettings(session);}catch(java.io.IOException e){p.kick(text("&cLokale Paketdaten ungültig."));return;}session.localGate=new PackGate(session.localPack.id());
             Bukkit.getScheduler().runTaskLater(this,()->offerLocal(p,session),10);}
         applyIcon(p);
         Bukkit.getScheduler().runTaskLater(this, () -> hello(p),10);
     }
     private Settings localSettings(Session session){
         var menu=localDelivery.state().menu();
-        var entries=menu.servers().stream().filter(server->!server.hidden()&&server.entry().target().equals("local")).map(server->{var e=server.entry();return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),MenuSnapshot.Status.ONLINE,e.family());}).toList();
-        return Settings.fromNetwork(new MenuSnapshot(menu.revision(),menu.options(),entries,session.localFonts));
+        var entries=menu.servers().stream().filter(server->!server.hidden()&&server.entry().target().equals("local")).map(server->{var e=server.entry();int online=Bukkit.getOnlinePlayers().size(),max=Bukkit.getMaxPlayers();String prefix=MenuTemplate.render(e.style().prefix().isBlank()?menu.options().text("prefix.text"):e.style().prefix(),e.name(),e.target(),MenuSnapshot.Status.ONLINE,online,max);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),MenuSnapshot.Status.ONLINE,e.family(),e.style().live(online,max,prefix,localNews.active(e.target())));}).toList();
+        return Settings.fromNetwork(new MenuSnapshot(menu.revision(),menu.options(),entries,session.localFonts,session.localUi));
     }
     private void offerLocal(Player player,Session session){
         if(!player.isOnline()||sessions.get(player.getUniqueId())!=session)return;
@@ -129,17 +134,19 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             } else if(packet.type()==Wire.Type.MENU){
                 MenuSnapshot snapshot=MenuSnapshot.decode(packet.values());
                 Settings next=Settings.fromNetwork(snapshot);
-                boolean redraw=s.menuToken!=null&&next.menuOptions().flag("status.refresh-open-menu")&&s.central!=null&&(!s.central.entries().equals(next.entries())||!s.central.menuOptions().equals(next.menuOptions()));
+                boolean redraw=s.newsTarget==null&&s.menuToken!=null&&next.menuOptions().flag("status.refresh-open-menu")&&s.central!=null&&(!s.central.entries().equals(next.entries())||!s.central.menuOptions().equals(next.menuOptions()));
                 if(!snapshot.revision().equals(s.revision))s.menuToken=null;
                 s.revision=snapshot.revision();s.central=next;s.catalog=snapshot.entries().stream().map(MenuSnapshot.Entry::target).toList();s.discovered=true;
                 applyIcon(p);
                 if(redraw)open(p,s.menuPage);
+            } else if(packet.type()==Wire.Type.NEWS_CONTENT){
+                String target=packet.value(0);if(target.equals(s.newsTarget)){String content=String.join("",packet.values().subList(1,packet.values().size()));if(content.length()>NewsStore.MAX_MESSAGE)return;if(content.isBlank()){s.newsTarget=null;p.sendMessage(message(p,"news-missing"));open(p,s.menuPage);}else showNews(p,s,target,content);}
             } else if(packet.type()==Wire.Type.REPORT_LINK&&backendReporter!=null){
                 var raw=p.spigot().getRawAddress();if(raw!=null)BackendReportLink.fromVirtualHost(packet.value(0)).ifPresent(link->backendReporter.configureTrusted(link,raw.getHostString()));
             } else if (packet.type() == Wire.Type.CATALOG) {
                 s.catalog = packet.values(); s.discovered = true;
             } else if (packet.type() == Wire.Type.RESULT) {
-                String key = switch(packet.value(0)) { case "already" -> "already-connected"; case "denied" -> "denied"; case "loading" -> "loading";case "navigator" -> "navigator-unavailable"; default -> "unavailable"; };
+                String key = switch(packet.value(0)) { case "already" -> "already-connected"; case "denied" -> "denied"; case "loading" -> "loading";case "navigator" -> "navigator-unavailable";case "news-start"->"news-started";case "news-stop"->"news-stopped"; default -> "unavailable"; };
                 p.sendMessage(message(p,key));
             }
         } catch (Exception ignored) { /* Untrusted or out-of-date message. */ }
@@ -149,7 +156,9 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         if(backendReporter!=null)backendReporter.sample(getServer().isPaused());
         for (Player p : Bukkit.getOnlinePlayers()) {
             Session s = sessions.get(p.getUniqueId()); if (s == null) continue;
+            if(!proxyExpected&&s.central!=null){Settings next=localSettings(s);boolean update=!s.central.entries().equals(next.entries());s.central=next;if(update&&s.menuToken!=null&&s.newsTarget==null&&next.menuOptions().flag("status.refresh-open-menu"))open(p,s.menuPage);}
             Settings config=effective(p);
+            if(s.menuToken!=null&&s.newsTarget==null&&config.menuOptions().flag("prefix.enabled")&&config.menuOptions().flag("prefix.placeholderapi")&&config.menuOptions().flag("status.refresh-open-menu")&&!s.rendered.equals(rendered(p,config)))open(p,s.menuPage);
             if (proxyExpected && (!s.acknowledged||s.central==null) && System.currentTimeMillis()-s.joined > config.handshakeTimeout()*1000L) { p.kick(message(p,"proxy-missing")); continue; }
             if (proxyExpected && (ticks % 5 == 0 || !s.acknowledged)) hello(p);
             if (ready(p) && p.hasPermission("serverhub.use") && config.hint() && !config.menuOptions().flag("runtime.waiting") && ticks % config.hintInterval() == 0
@@ -169,9 +178,9 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         if(s==null||s.central==null){hello(p);p.sendMessage(message(p,"discovering"));return;}
         if(!ready(p)){p.sendMessage(message(p,"loading"));return;}
         Settings config=effective(p);MenuOptions options=config.menuOptions();
-        var entries=config.entries().stream().filter(e->e.permission().isBlank()||p.hasPermission(e.permission())).toList();
+        var entries=rendered(p,config);
         int page=options.scrolling()?0:MenuLayout.clampPage(requested,entries.size(),options.number("menu.page-size"));
-        UUID token=UUID.randomUUID();s.menuToken=token;s.menuPage=page;
+        UUID token=UUID.randomUUID();s.menuToken=token;s.menuPage=page;s.newsTarget=null;s.rendered=entries;
         // Never place this dialog over a container: closing returns directly to the game.
         p.closeInventory();
         DialogMenu.show(p,gui.forSettings(config),config,entries,page,action->Bukkit.getScheduler().runTask(this,()->{
@@ -180,7 +189,20 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             s.menuToken=null;action.run();
         }),entry->choose(p,s,entry),next->open(p,next));
     }
+    private List<Settings.Entry> rendered(Player player,Settings config){var options=config.menuOptions();return config.entries().stream().filter(e->e.permission().isBlank()||player.hasPermission(e.permission())).map(e->{if(!options.flag("prefix.enabled"))return e;String prefix=PlaceholderBridge.apply(player,e.style().prefix(),options.flag("prefix.placeholderapi"));if(prefix.length()>256)prefix=prefix.substring(0,256);return e.prefix(prefix);}).toList();}
     private void choose(Player p,Session s,Settings.Entry entry){
+        if(entry.style().news()&&effective(p).menuOptions().flag("news.enabled")){
+            s.newsTarget=entry.target();if(proxyExpected)p.sendPluginMessage(this,Wire.CHANNEL,Wire.encode(Wire.Type.NEWS_VIEW,s.nonce,entry.target()));else showNews(p,s,entry.target(),localNews.get(entry.target()));return;
+        }
+        connectSelected(p,s,entry);
+    }
+    private void showNews(Player player,Session session,String target,String content){
+        if(!ready(player)||player.isDead()||!player.hasPermission("serverhub.use"))return;
+        var entry=effective(player).entries().stream().filter(e->e.target().equals(target)&&(e.permission().isBlank()||player.hasPermission(e.permission()))).findFirst().orElse(null);if(entry==null)return;
+        UUID token=UUID.randomUUID();session.menuToken=token;session.newsTarget=target;player.closeInventory();
+        DialogMenu.news(player,effective(player),entry,text(content),action->Bukkit.getScheduler().runTask(this,()->{if(!player.isOnline()||player.isDead()||sessions.get(player.getUniqueId())!=session||!token.equals(session.menuToken)||!ready(player))return;session.menuToken=null;action.run();}),()->{session.newsTarget=null;connectSelected(player,session,entry);},()->{session.newsTarget=null;open(player,session.menuPage);});
+    }
+    private void connectSelected(Player p,Session s,Settings.Entry entry){
         if(!entry.permission().isBlank()&&!p.hasPermission(entry.permission())){p.sendMessage(message(p,"no-permission"));return;}
         if(s.central==null||s.central.entries().stream().noneMatch(e->e.target().equalsIgnoreCase(entry.target()))) {
             p.sendMessage(message(p,"unavailable"));return;
@@ -240,6 +262,14 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             ||e.getClick()==ClickType.SWAP_OFFHAND&&isIcon(p.getInventory().getItemInOffHand()))e.setCancelled(true);
     }
     @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] args){
+        if(args.length>0&&args[0].equalsIgnoreCase("news")){
+            if(!sender.hasPermission("serverhub.news")){sender.sendMessage(message("no-permission"));return true;}
+            try{
+                String current=!proxyExpected?"local":sender instanceof Player player?effective(player).menuOptions().text("runtime.server"):"";var operation=NewsCommand.parse(args,current);
+                if(proxyExpected){if(!(sender instanceof Player player)){sender.sendMessage("Am Proxy /serverhubproxy news start --server Ziel Nachricht verwenden.");return true;}Session session=sessions.get(player.getUniqueId());if(session==null||session.central==null){player.sendMessage(message(player,"discovering"));return true;}player.sendPluginMessage(this,Wire.CHANNEL,Wire.encode(Wire.Type.NEWS_CHANGE,session.nonce,operation.wire()));}
+                else {if(operation.start())localNews.start(operation.target(),operation.message());else localNews.stop(operation.target());sender.sendMessage(message(operation.start()?"news-started":"news-stopped"));}
+            }catch(Exception e){sender.sendMessage(text("&c"+e.getMessage()));}return true;
+        }
         if(args.length==1&&args[0].equalsIgnoreCase("reload")) {
             if(!sender.hasPermission("serverhub.reload")){sender.sendMessage(message("no-permission"));return true;}
             if(proxyExpected)sender.sendMessage(text("&eNetzwerkmodus: servers.yml und pack/ am Proxy bearbeiten und dort /serverhubproxy reload ausführen."));
@@ -251,6 +281,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         return true;
     }
     @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
-        return args.length==1&&sender.hasPermission("serverhub.reload")&&"reload".startsWith(args[0].toLowerCase(Locale.ROOT))?List.of("reload"):List.of();
+        if(args.length==1){var values=new ArrayList<String>();if(sender.hasPermission("serverhub.reload"))values.add("reload");if(sender.hasPermission("serverhub.news"))values.add("news");return values.stream().filter(v->v.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();}
+        if(args[0].equalsIgnoreCase("news")&&sender.hasPermission("serverhub.news")){if(args.length==2)return List.of("start","stop").stream().filter(v->v.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();if(args.length==3)return List.of("--server");if(args.length==4&&args[2].equalsIgnoreCase("--server")&&sender instanceof Player player)return effective(player).entries().stream().map(Settings.Entry::target).filter(v->v.startsWith(args[3])).toList();}return List.of();
     }
 }

@@ -19,12 +19,12 @@ class PackWorkspaceTest {
         assertFalse(Files.exists(directory.resolve("pack-font-cache.properties.tmp")));
     }
     @Test void anUntouchedTwoFourFolderUpgradesToTheExactNewGithubPack()throws Exception {
-        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");String factory=Files.readString(metadata);Files.writeString(metadata,factory.replace("ServerHub 2.5","ServerHub 2.4"));
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");String factory=Files.readString(metadata);Files.writeString(metadata,factory.replace("ServerHub 2.5.1","ServerHub 2.4"));
         Files.delete(directory.resolve("pack-bundled-files.properties"));
         var upgraded=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());assertArrayEquals(stock,upgraded.bytes());assertEquals(factory,Files.readString(metadata));
     }
     @Test void factoryUpgradesKeepCustomTexturesAndChooseTheEditableDeliveryMode()throws Exception {
-        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");Files.writeString(metadata,Files.readString(metadata).replace("ServerHub 2.5","ServerHub 2.4"));Files.delete(directory.resolve("pack-bundled-files.properties"));
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");Files.writeString(metadata,Files.readString(metadata).replace("ServerHub 2.5.1","ServerHub 2.4"));Files.delete(directory.resolve("pack-bundled-files.properties"));
         Path button=directory.resolve("pack/assets/serverhub/textures/gui/button_mid.png");var texture=javax.imageio.ImageIO.read(button.toFile());texture.setRGB(0,5,0xFF123456);javax.imageio.ImageIO.write(texture,"png",button.toFile());byte[] custom=Files.readAllBytes(button);
         Files.writeString(directory.resolve("config.properties"),"pack.mode=auto\n");var upgraded=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());assertArrayEquals(custom,Files.readAllBytes(button));assertFalse(PackWorkspace.bundled(upgraded,stock));assertTrue(ProxySettings.read(directory).http());
     }
@@ -48,9 +48,34 @@ class PackWorkspaceTest {
         assertArrayEquals(edited,Files.readAllBytes(atlas));assertEquals(24,second.fonts().advance("custom",12,'W'));
         assertNotEquals(first.sha1(),second.sha1());assertArrayEquals(second.bytes(),PackWorkspace.prepare(directory,stock,options).bytes());
     }
-    @Test void unsafePathsAndMissingCustomFontsAreRejected()throws Exception {
-        byte[] stock=stock();assertThrows(java.io.IOException.class,()->PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("menu.font-family","custom"))));
-        assertThrows(java.io.IOException.class,()->PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("font.url","http://example.org/font.ttf"))));
+    @Test void multipleNamedFontsProduceValidJsonAndAnActuallyDownloadablePack()throws Exception {
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());
+        Path fonts=directory.resolve("fonts");Files.copy(directory.resolve("pack/assets/serverhub/fonts/mono.ttf"),fonts.resolve("my_font.ttf"));Files.copy(directory.resolve("pack/assets/serverhub/fonts/serif.ttf"),fonts.resolve("second-font.otf"));
+        var pack=PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("menu.font-family","my_font","buttons.close.font-family","second-font")));
+        assertTrue(pack.fonts().families().containsAll(List.of("my_font","second-font")));assertFalse(Files.exists(directory.resolve("font-problems.txt")));
+        try(var zip=new ZipFile(directory.resolve("serverhub-pack.zip").toFile())){for(String family:List.of("my_font","second-font"))for(int size:FontBook.SIZES){var entry=zip.getEntry("assets/serverhub/font/label_"+family+"_"+size+".json");var json=Json.read(new String(zip.getInputStream(entry).readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));assertTrue(json.getAsJsonObject().getAsJsonArray("providers").size()>0);}}
+        try(var host=new PackHost("127.0.0.1",0,pack);var client=java.net.http.HttpClient.newHttpClient()){
+            String url="http://127.0.0.1:"+host.port()+"/serverhub.zip?sha1="+pack.sha1();
+            var result=client.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create(url)).GET().build(),java.net.http.HttpResponse.BodyHandlers.ofByteArray());assertEquals(200,result.statusCode());assertArrayEquals(pack.bytes(),result.body());
+        }
+    }
+    @Test void oneBrokenFontDoesNotPoisonThePackOrAnAlreadyWorkingFamily()throws Exception {
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Files.writeString(directory.resolve("pack/assets/serverhub/fonts/custom.ttf"),"not a font");
+        var fallback=PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("menu.font-family","custom")));assertArrayEquals(stock,fallback.bytes());assertEquals("sans",fallback.fonts().family("custom",12));assertTrue(Files.readString(directory.resolve("font-problems.txt")).contains("custom"));
+        Files.copy(directory.resolve("pack/assets/serverhub/fonts/mono.ttf"),directory.resolve("fonts/custom.ttf"));var working=PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("menu.font-family","custom")));assertEquals("custom",working.fonts().family("custom",12));
+        Files.writeString(directory.resolve("fonts/custom.ttf"),"bad replacement");assertArrayEquals(working.bytes(),PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("menu.font-family","custom"))).bytes());
+    }
+    @Test void aServerBackgroundCompilesToTheSameAlignedBoxWithOptionalRoundedAlpha()throws Exception {
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());var image=new java.awt.image.BufferedImage(120,20,java.awt.image.BufferedImage.TYPE_INT_ARGB);var g=image.createGraphics();g.setColor(java.awt.Color.BLUE);g.fillRect(0,0,120,20);g.dispose();javax.imageio.ImageIO.write(image,"png",directory.resolve("backgrounds/challenges.png").toFile());
+        var pack=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());var skin=pack.ui().skin("challenges",true);assertNotNull(skin);assertEquals(120,skin.columns());assertEquals(40,pack.ui().rollLeft());
+        var rounded=javax.imageio.ImageIO.read(directory.resolve("pack/assets/serverhub/textures/backgrounds/generated/challenges_round.png").toFile());assertEquals(0,rounded.getRGB(0,0)>>>24);assertEquals(255,rounded.getRGB(60,10)>>>24);
+        var definition=Json.read(Files.readString(directory.resolve("pack/assets/serverhub/font/backgrounds.json"))).getAsJsonObject();assertTrue(definition.getAsJsonArray("providers").size()>1);assertArrayEquals(pack.bytes(),PackWorkspace.prepare(directory,stock,MenuOptions.defaults()).bytes());
+    }
+    @Test void unsafePathsAreRejectedAndMissingFontsFallBack()throws Exception {
+        byte[] stock=stock();assertArrayEquals(stock,PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("menu.font-family","custom"))).bytes());
+        assertTrue(Files.readString(directory.resolve("font-problems.txt")).contains("custom"));
+        assertArrayEquals(stock,PackWorkspace.prepare(directory,stock,new MenuOptions(Map.of("font.url","http://example.org/font.ttf"))).bytes());
+        assertTrue(Files.readString(directory.resolve("font-problems.txt")).contains("HTTPS"));
         Files.createSymbolicLink(directory.resolve("pack/outside"),directory.getParent());
         assertThrows(java.io.IOException.class,()->PackWorkspace.prepare(directory,stock,MenuOptions.defaults()));
     }

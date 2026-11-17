@@ -15,7 +15,7 @@ public final class LocalPackDelivery implements AutoCloseable {
         reload();
     }
     public synchronized State reload()throws IOException {
-        var candidate=new CentralMenuConfig(directory).load(List.of("local"));PackData pack=PackWorkspace.prepare(directory,bundled,candidate.options());
+        var candidate=new CentralMenuConfig(directory).load(List.of("local"));PackData pack=PackWorkspace.prepare(directory,bundled,candidate.options(),candidate.fontSources());
         new MenuSnapshot(candidate.revision(),candidate.options(),candidate.servers().stream().filter(s->!s.hidden()).map(CentralMenuConfig.Server::entry).toList(),pack.fonts()).encode();
         Properties p=new Properties();try(var reader=Files.newBufferedReader(directory.resolve("config.properties"),StandardCharsets.UTF_8)){p.load(reader);}
         String mode=p.getProperty("pack.mode","auto").trim(),external=p.getProperty("pack.external-url","");

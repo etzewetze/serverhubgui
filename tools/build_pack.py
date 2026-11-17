@@ -4,7 +4,7 @@
 Requires Pillow. Minecraft's global GUI sprites and shaders are untouched.
 """
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops
 import json, random, shutil
 from package_pack import main as package
 
@@ -24,17 +24,10 @@ def main():
     wood=Image.new('RGBA',(140,20),'#62431F');wood.alpha_composite(button)
     ImageDraw.Draw(wood).rectangle((0,0,139,19),outline='#493016',width=2)
     wood.save(gui/'button.png')
-    scroll=Image.new('RGBA',(220,30),(0,0,0,0));d=ImageDraw.Draw(scroll)
-    d.rectangle((10,3,209,26),fill='#DEC18A',outline='#6A4829',width=1)
-    d.line((12,4,207,4),fill='#F7E4B0');d.line((12,25,207,25),fill='#A77B42')
-    rng=random.Random(220)
-    for _ in range(190):
-        x=rng.randrange(13,207);y=rng.randrange(6,24)
-        d.point((x,y),fill=rng.choice(('#D7B980','#E7CC97','#D2B27A')))
-    for left,right in ((0,13),(206,219)):
-        d.rounded_rectangle((left,1,right,28),radius=4,fill='#B68B4C',outline='#604020')
-        d.line((left+3,4,left+3,25),fill='#F5D59A',width=2)
-        d.line((right-2,4,right-2,25),fill='#8E622F')
+    original=Image.open(source/'title-banner.png').convert('RGBA')
+    bounds=original.getchannel('A').point(lambda a:255 if a>=32 else 0).getbbox()
+    original=original.crop(bounds)
+    scroll=original.resize((round(original.width*32/original.height),32),Image.Resampling.LANCZOS)
     scroll.save(gui/'scroll.png')
     info=Image.new('RGBA',(140,20),'#D8BD89');di=ImageDraw.Draw(info)
     di.rectangle((0,0,139,19),outline='#8C663A');di.line((1,1,138,1),fill='#EDD7A9')
@@ -42,7 +35,7 @@ def main():
     dot=Image.new('RGBA',(6,6),(255,255,255,0));ImageDraw.Draw(dot).ellipse((0,0,5,5),fill='white');dot.save(gui/'status.png')
     save_json(A/'font/status.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/status.png','height':6,'ascent':6,'chars':['\uE300']}]})
     # Nine-slice glyphs let the client build a roll/button of the measured text width.
-    parts=[('scroll_left',scroll.crop((0,0,12,30)),0xE400,18),('scroll_mid',scroll.crop((110,0,111,30)),0xE401,18),('scroll_right',scroll.crop((208,0,220,30)),0xE402,18),
+    parts=[('scroll_left',scroll.crop((0,0,40,32)),0xE400,19),('scroll_mid',scroll.crop((scroll.width//2,0,scroll.width//2+1,32)),0xE401,19),('scroll_right',scroll.crop((scroll.width-40,0,scroll.width,32)),0xE402,19),
            ('button_left',wood.crop((0,0,4,20)),0xE410,13),('button_mid',wood.crop((70,0,71,20)),0xE411,13),('button_right',wood.crop((136,0,140,20)),0xE412,13),
            ('info_left',info.crop((0,0,4,20)),0xE420,13),('info_mid',info.crop((70,0,71,20)),0xE421,13),('info_right',info.crop((136,0,140,20)),0xE422,13)]
     providers=[]
@@ -50,6 +43,26 @@ def main():
         image.save(gui/(name+'.png'));providers.append({'type':'bitmap','file':'serverhub:gui/'+name+'.png','height':image.height,'ascent':ascent,'chars':[chr(code)]})
     providers.insert(0,{'type':'space','advances':{'\uF0FF':-1}})
     save_json(A/'font/gui.json',{'providers':providers})
+    # Column glyphs preserve the entire image when a button changes width.
+    src=A/'textures/backgrounds/source';gen=A/'textures/backgrounds/generated';src.mkdir(parents=True,exist_ok=True);gen.mkdir(parents=True,exist_ok=True)
+    blue=Image.new('RGBA',(140,20),'#315E89');bd=ImageDraw.Draw(blue)
+    bd.rectangle((0,0,139,19),outline='#142D49');bd.line((1,1,138,1),fill='#82AECF')
+    examples={'blue':blue,'paper':info,'wood':wood}
+    skin_providers=[{'type':'space','advances':{'\uF8FF':-1}}];catalog={'roll.left':'40','roll.right':'40','icons':'true'}
+    for index,(name,image)in enumerate(sorted(examples.items())):
+        image.save(src/(name+'.png'))
+        for rounded in (False,True):
+            item=image.copy();file=name+('_round'if rounded else'')+'.png'
+            if rounded:
+                mask=Image.new('L',item.size);ImageDraw.Draw(mask).rounded_rectangle((0,0,item.width-1,19),radius=4,fill=255);item.putalpha(ImageChops.multiply(item.getchannel('A'),mask))
+            item.save(gen/file);code=0xE000+index*384+(192 if rounded else 0)
+            key=name+('.round'if rounded else'');catalog['skin.'+key]=str(code)+','+str(item.width)
+            skin_providers.append({'type':'bitmap','file':'serverhub:backgrounds/generated/'+file,'height':20,'ascent':12,'chars':[''.join(chr(code+i)for i in range(item.width))]})
+    save_json(A/'font/backgrounds.json',{'providers':skin_providers})
+    news=Image.new('RGBA',(10,10));nd=ImageDraw.Draw(news);nd.rounded_rectangle((0,0,9,9),radius=2,fill='white')
+    for y in (2,4,6):nd.line((2,y,7,y),fill=(255,255,255,0))
+    news.save(gui/'news.png');save_json(A/'font/icons.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/news.png','height':10,'ascent':8,'chars':['\uE540']}]})
+    ui='\n'.join(k+'='+v for k,v in sorted(catalog.items()))+'\n';(OUT/'serverhub-ui.properties').write_text(ui);(ROOT/'paper/src/main/resources/ui.properties').write_text(ui)
     advances={}
     for bit in range(11):
         advances[chr(0xF100+bit)]=-(1<<bit);advances[chr(0xF200+bit)]=1<<bit
@@ -99,7 +112,7 @@ def main():
     ]})
     save_json(A/'items/menu_icon.json',{'model':{'type':'minecraft:model','model':'serverhub:item/menu_icon'}})
     save_json(A/'models/item/menu_icon.json',{'parent':'minecraft:item/generated','textures':{'layer0':'serverhub:item/menu_icon'}})
-    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.5 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
+    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.5.1 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
     shutil.copyfile(source/'FONT-LICENSE.txt',OUT/'FONT-LICENSE.txt')
     package()
 

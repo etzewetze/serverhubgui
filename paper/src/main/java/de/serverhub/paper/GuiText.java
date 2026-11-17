@@ -8,13 +8,15 @@ import java.io.*;
 
 final class GuiText {
     private final FontBook fonts;
+    private final UiCatalog ui;
     GuiText()throws IOException {
         try(var input=getClass().getResourceAsStream("/font-widths.properties")){
             if(input==null)throw new IOException("Schriftmetriken fehlen");fonts=FontBook.properties(input);
         }
+        try(var input=getClass().getResourceAsStream("/ui.properties")){ui=input==null?UiCatalog.empty():UiCatalog.properties(input);}
     }
-    private GuiText(FontBook fonts){this.fonts=fonts;}
-    GuiText forSettings(Settings settings){return settings.fonts().isEmpty()?this:new GuiText(settings.fonts());}
+    private GuiText(FontBook fonts,UiCatalog ui){this.fonts=fonts;this.ui=ui;}
+    GuiText forSettings(Settings settings){return new GuiText(settings.fonts().isEmpty()?fonts:settings.fonts(),settings.ui());}
     static Component base(){return Component.empty().color(NamedTextColor.WHITE).shadowColor(ShadowColor.none()).decoration(TextDecoration.ITALIC,false).decoration(TextDecoration.BOLD,false);}
     static Component move(int pixels){
         if(Math.abs(pixels)>2047)throw new IllegalArgumentException("Text offset too large");
@@ -34,10 +36,11 @@ final class GuiText {
         Component value=base();int cursor;
         void at(int x){value=value.append(move(x-cursor));cursor=x;}
         void background(int type,int width,TextColor tint){
-            int cap=type==0?12:4,code=type==0?0xE400:type==1?0xE410:0xE420;
-            String glyphs=""+(char)code+'\uF0FF'+((""+(char)(code+1)+'\uF0FF').repeat(Math.max(0,width-cap*2)))+(char)(code+2)+'\uF0FF';
+            int cap=type==0?ui.rollLeft():4,right=type==0?ui.rollRight():4,code=type==0?0xE400:type==1?0xE410:0xE420;
+            String glyphs=""+(char)code+'\uF0FF'+((""+(char)(code+1)+'\uF0FF').repeat(Math.max(0,width-cap-right)))+(char)(code+2)+'\uF0FF';
             value=value.append(Component.text(glyphs).font(Key.key("serverhub:gui")).color(tint));cursor+=width;
         }
+        void skin(UiCatalog.Skin skin,int width,TextColor tint){var glyphs=new StringBuilder();for(int x=0;x<width;x++)glyphs.append((char)(skin.glyph()+Math.min(skin.columns()-1,x*skin.columns()/width))).append('\uF8FF');value=value.append(Component.text(glyphs.toString()).font(Key.key("serverhub:backgrounds")).color(tint));cursor+=width;}
         void text(String text,String family,int size,int x,TextColor color,MenuOptions settings){
             family=fonts.family(family,size);int w=fonts.width(text,family,size);
             if(settings.flag("text.shadow")){
@@ -48,7 +51,7 @@ final class GuiText {
         Component finish(int width){at(width);return value;}
     }
     Component heading(String title,TextColor color,MenuOptions options){
-        String family=options.text("menu.font-family");int size=options.number("menu.title-font-size"),padding=options.number("menu.title-padding");
+        String family=options.text("menu.font-family");int size=options.number("menu.title-font-size"),padding=Math.max(options.number("menu.title-padding"),Math.max(ui.rollLeft(),ui.rollRight())+8);
         String text=fit(title,family,size,options.number("menu.title-max-width")-padding*2);int w=fonts.width(text,family,size),roll=Math.max(48,w+padding*2);
         var c=new Canvas();c.background(0,roll,Settings.color(options.text("menu.title-background-color")));c.text(text,family,size,(roll-w)/2,color,options);return c.finish(roll);
     }
@@ -62,7 +65,23 @@ final class GuiText {
         }
         c.text(text,family,size,-4+(width-w)/2,color,options);return c.finish(width-8);
     }
-    Component server(Settings.Entry entry,MenuOptions options){return button(entry.name(),entry.size(),entry.color(),options.number("menu.button-width"),entry.family(),Settings.color(options.text("menu.button-background-color")),options,options.flag("status.enabled")?entry.status():null);}
+    private String label(Settings.Entry entry,MenuOptions options){return options.flag("prefix.enabled")&&!entry.style().prefix().isBlank()?entry.style().prefix()+" "+entry.name():entry.name();}
+    int preferredWidth(Settings.Entry entry,MenuOptions options){
+        int explicit=entry.style().width()>0?entry.style().width():options.number("menu.button-width");if(explicit>0)return Math.clamp(explicit,80,500);
+        String family=entry.family().isBlank()?options.text("menu.font-family"):entry.family();String clean=fit(label(entry,options),family,entry.size(),100000);
+        int width=fonts.width(clean,family,entry.size())+(options.flag("status.enabled")?40:16)+(entry.style().news()&&options.flag("news.enabled")?16:0);
+        return Math.clamp(width,options.number("menu.button-min-width"),options.number("menu.button-max-width"));
+    }
+    Component server(Settings.Entry entry,MenuOptions options){return server(entry,options,preferredWidth(entry,options));}
+    Component server(Settings.Entry entry,MenuOptions options,int width){
+        String family=entry.family().isBlank()?options.text("menu.font-family"):entry.family(),background=entry.style().background().isBlank()?options.text("menu.button-style"):entry.style().background();
+        boolean news=entry.style().news()&&options.flag("news.enabled"),rounded=entry.style().rounded()||options.flag("menu.rounded-buttons");String text=fit(label(entry,options),family,entry.size(),width-(options.flag("status.enabled")?40:16)-(news?16:0));int w=fonts.width(text,family,entry.size());var c=new Canvas();c.at(-4);
+        var skin=ui.skin(background,rounded);if(skin!=null)c.skin(skin,width,Settings.color(entry.style().tint()));else if(background.equals("wood"))c.background(1,width,Settings.color(entry.style().tint()));
+        if(options.flag("status.enabled")){int rgb=switch(entry.status()){case ONLINE->0x62D86B;case OFFLINE->0xF05A56;case SLEEPING,STARTING->0xFFD15C;case UNKNOWN->0xA7ADB4;};c.at(6);c.value=c.value.append(Component.text("\uE300").font(Key.key("serverhub:status")).color(TextColor.color(rgb)));c.cursor+=7;}
+        c.text(text,family,entry.size(),-4+(width-w)/2,entry.color(),options);
+        if(news){c.at(width-20);c.value=c.value.append(Component.text(ui.icons()?"\uE540":"!").font(Key.key(ui.icons()?"serverhub:icons":"serverhub:label_sans_10")).color(TextColor.color(0xFFD15C)));c.cursor+=ui.icons()?11:fonts.width("!","sans",10);}
+        return c.finish(width-8);
+    }
     Component information(String text,int width,MenuOptions options){
         String family=options.text("menu.font-family"),fitted=fit(text,family,8,width-16);var c=new Canvas();c.at(-4);boolean wood=options.text("menu.button-style").equals("wood");if(wood)c.background(2,width,NamedTextColor.WHITE);
         c.text(fitted,family,8,-4+(width-fonts.width(fitted,family,8))/2,TextColor.color(wood?0x4D3620:0xB7B7B7),options);return c.finish(width-8);

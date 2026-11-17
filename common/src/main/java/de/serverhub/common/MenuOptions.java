@@ -9,9 +9,10 @@ public record MenuOptions(Map<String,String> values) {
         var m=new LinkedHashMap<String,Object>();
         m.put("menu.title","Serverauswahl");m.put("menu.title-color","#3D2817");
         m.put("menu.font-size",12);m.put("menu.text-color","#FFF4D6");
-        m.put("menu.font-family","sans");m.put("menu.title-font-size",12);m.put("menu.title-padding",12);m.put("menu.title-max-width",320);
-        m.put("menu.button-width",140);m.put("menu.button-style","minecraft");m.put("menu.title-warning-offset",24);m.put("menu.button-background-color","#FFFFFF");m.put("menu.title-background-color","#FFFFFF");m.put("text.shadow",true);m.put("text.shadow-color","#24180E");
-        m.put("font.url","");m.put("font.refresh",false);m.put("integration.servernavigator",true);m.put("runtime.waiting",false);
+        m.put("menu.font-family","sans");m.put("menu.title-font-size",12);m.put("menu.title-padding",48);m.put("menu.title-max-width",400);
+        m.put("menu.button-width",0);m.put("menu.button-min-width",180);m.put("menu.button-max-width",360);m.put("menu.align-button-widths",true);m.put("menu.rounded-buttons",false);m.put("menu.button-style","minecraft");m.put("menu.title-warning-offset",24);m.put("menu.button-background-color","#FFFFFF");m.put("menu.title-background-color","#FFFFFF");m.put("text.shadow",true);m.put("text.shadow-color","#24180E");
+        m.put("hover.enabled",false);m.put("hover.text","{name}\nStatus: {status}\nZiel: {target}");m.put("prefix.enabled",false);m.put("prefix.text","{players} Spieler");m.put("prefix.placeholderapi",true);m.put("news.enabled",true);m.put("news.back","← Zurück");m.put("news.connect","Server betreten");
+        m.put("font.url","");m.put("font.refresh",false);m.put("integration.servernavigator",true);m.put("runtime.waiting",false);m.put("runtime.server","");
         m.put("menu.layout","list");m.put("menu.navigation","scroll");m.put("menu.page-size",6);
         m.put("menu.show-page-info",true);m.put("menu.show-server-count",false);m.put("menu.single-page-info",false);
         m.put("menu.previous","Zurück");m.put("menu.next","Weiter");m.put("menu.close","Schließen");
@@ -33,6 +34,7 @@ public record MenuOptions(Map<String,String> values) {
         m.put("messages.unavailable","&cDieser Server ist gerade nicht erreichbar.");
         m.put("messages.already-connected","&eDu bist bereits auf diesem Server.");
         m.put("messages.navigator-unavailable","&cServerNavigator benötigt die Integrationsschnittstelle ab Version 1.2.0 oder ist noch nicht bereit.");
+        m.put("messages.news-started","&aNeuigkeiten gespeichert.");m.put("messages.news-stopped","&aNeuigkeiten beendet.");m.put("messages.news-missing","&eFür diesen Server gibt es keine Neuigkeiten.");
         m.put("messages.denied","&cDer Proxy hat den Wechsel nicht erlaubt.");
         DEFAULTS=Collections.unmodifiableMap(m);
     }
@@ -40,7 +42,7 @@ public record MenuOptions(Map<String,String> values) {
         var next=new LinkedHashMap<String,String>();
         DEFAULTS.forEach((key,value)->next.put(key,String.valueOf(value)));
         values.forEach((key,value)->{
-            if(!DEFAULTS.containsKey(key)||value==null||value.length()>(key.equals("font.url")?2048:256))throw new IllegalArgumentException("Ungültige Einstellung: "+key);
+            if(!DEFAULTS.containsKey(key)||value==null||value.length()>(Set.of("font.url","hover.text").contains(key)?2048:256))throw new IllegalArgumentException("Ungültige Einstellung: "+key);
             Object standard=DEFAULTS.get(key);
             if(standard instanceof Boolean&&!Set.of("true","false").contains(value))throw new IllegalArgumentException("Boolean erwartet: "+key);
             if(standard instanceof Integer)Integer.parseInt(value);
@@ -52,11 +54,11 @@ public record MenuOptions(Map<String,String> values) {
         range(next,"menu.title-warning-offset",0,40);
         font(Integer.parseInt(next.get("menu.font-size")));
         font(Integer.parseInt(next.get("menu.title-font-size")));color(next.get("text.shadow-color"));
-        if(!FontBook.FAMILIES.contains(next.get("menu.font-family")))throw new IllegalArgumentException("menu.font-family: sans, serif, mono oder custom");
-        range(next,"menu.title-padding",4,40);if(Integer.parseInt(next.get("menu.title-max-width"))<Integer.parseInt(next.get("menu.title-padding"))*2+16)throw new IllegalArgumentException("Titelbreite ist zu klein für den Rand");range(next,"menu.title-max-width",64,600);range(next,"menu.button-width",80,300);
+        if(!FontBook.validFamily(next.get("menu.font-family")))throw new IllegalArgumentException("menu.font-family muss eine gültige Schrift-ID sein");
+        range(next,"menu.title-padding",8,80);if(Integer.parseInt(next.get("menu.title-max-width"))<Integer.parseInt(next.get("menu.title-padding"))*2+16)throw new IllegalArgumentException("Titelbreite ist zu klein für den Rand");range(next,"menu.title-max-width",64,600);if(!next.get("menu.button-width").equals("0"))range(next,"menu.button-width",80,500);range(next,"menu.button-min-width",80,500);range(next,"menu.button-max-width",80,500);if(Integer.parseInt(next.get("menu.button-min-width"))>Integer.parseInt(next.get("menu.button-max-width")))throw new IllegalArgumentException("Minimale Buttonbreite ist größer als Maximum");
         for(String button:List.of("previous","next","close")){
             String prefix="buttons."+button+".";font(Integer.parseInt(next.get(prefix+"font-size")));color(next.get(prefix+"color"));color(next.get(prefix+"background-color"));range(next,prefix+"width",80,300);
-            if(!next.get(prefix+"font-family").isBlank()&&!FontBook.FAMILIES.contains(next.get(prefix+"font-family")))throw new IllegalArgumentException(prefix+"font-family ungültig");
+            if(!next.get(prefix+"font-family").isBlank()&&!FontBook.validFamily(next.get(prefix+"font-family")))throw new IllegalArgumentException(prefix+"font-family ungültig");
         }
         color(next.get("menu.title-color"));color(next.get("menu.text-color"));color(next.get("menu.button-background-color"));color(next.get("menu.title-background-color"));
         range(next,"menu.page-size",1,50);range(next,"status.ping-interval-seconds",1,300);

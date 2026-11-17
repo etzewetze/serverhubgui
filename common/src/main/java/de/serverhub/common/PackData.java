@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public record PackData(byte[] bytes, String sha1, UUID id) {
+    public UiCatalog ui()throws IOException {
+        try(var zip=new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes))){for(var e=zip.getNextEntry();e!=null;e=zip.getNextEntry())if(e.getName().equals("serverhub-ui.properties"))return UiCatalog.properties(zip);}return UiCatalog.empty();
+    }
     public FontBook fonts()throws IOException {
         try(var zip=new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes))){
             for(var entry=zip.getNextEntry();entry!=null;entry=zip.getNextEntry())if(entry.getName().equals("serverhub-font-widths.properties"))return FontBook.properties(zip);

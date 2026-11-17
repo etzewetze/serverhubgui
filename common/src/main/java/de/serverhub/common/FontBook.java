@@ -7,11 +7,14 @@ import java.util.*;
 public final class FontBook {
     public static final int[] SIZES={8,10,12,14,16};
     public static final List<String> FAMILIES=List.of("sans","serif","mono","custom");
+    public static final int MAX_FAMILIES=16;
+    public static boolean validFamily(String name){return name!=null&&name.matches("[a-z][a-z0-9_-]{0,31}");}
+    public Set<String> families(){var result=new TreeSet<String>();profiles.keySet().forEach(k->result.add(k.substring(0,k.lastIndexOf('.'))));return Collections.unmodifiableSet(result);}
     private final Map<String,int[]> profiles;
     public FontBook(Map<String,int[]> input){
-        if(input.size()>20)throw new IllegalArgumentException("Zu viele Schriftprofile");
+        if(input.size()>MAX_FAMILIES*5)throw new IllegalArgumentException("Zu viele Schriftprofile");
         var copy=new TreeMap<String,int[]>();input.forEach((key,value)->{
-            if(!key.matches("(?:sans|serif|mono|custom)\\.(?:8|10|12|14|16)")||value.length!=192)throw new IllegalArgumentException("Ungültige Schriftmetriken");
+            if(!key.matches("[a-z][a-z0-9_-]{0,31}\\.(?:8|10|12|14|16)")||value.length!=192)throw new IllegalArgumentException("Ungültige Schriftmetriken");
             if(Arrays.stream(value).anyMatch(n->n<1||n>64))throw new IllegalArgumentException("Ungültige Glyphenbreite");
             copy.put(key,value.clone());
         });profiles=Collections.unmodifiableMap(copy);
@@ -30,7 +33,7 @@ public final class FontBook {
         out.writeByte(profiles.size());for(var p:profiles.entrySet()){out.writeUTF(p.getKey());for(int n:p.getValue())out.writeByte(n);}
     }
     public static FontBook read(DataInput in)throws IOException {
-        int count=in.readUnsignedByte();if(count>20)throw new IOException("Zu viele Schriftprofile");
+        int count=in.readUnsignedByte();if(count>MAX_FAMILIES*5)throw new IOException("Zu viele Schriftprofile");
         var result=new LinkedHashMap<String,int[]>();for(int i=0;i<count;i++){
             String key=in.readUTF();var values=new int[192];for(int c=0;c<192;c++)values[c]=in.readUnsignedByte();
             if(result.put(key,values)!=null)throw new IOException("Doppeltes Schriftprofil");

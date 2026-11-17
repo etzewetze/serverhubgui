@@ -14,7 +14,7 @@ class MenuSnapshotTest {
         assertEquals(snapshot,MenuSnapshot.decode(List.of(snapshot.encode())));
         assertEquals(22,fonts.width("AB","custom",16));assertEquals("sans",fonts.family("missing",12));
         assertThrows(IllegalArgumentException.class,()->new MenuOptions(Map.of("buttons.next.width","20")));
-        assertThrows(IllegalArgumentException.class,()->new MenuOptions(Map.of("menu.font-family","unknown")));
+        assertThrows(IllegalArgumentException.class,()->new MenuOptions(Map.of("menu.font-family","../unknown")));
     }
     @Test void aCompleteConfigurationSurvivesTheNonceBoundChannel()throws Exception{
         var options=new MenuOptions(Map.of("menu.layout","list","menu.font-size","10","shift-f-hint.enabled","false"));
@@ -26,7 +26,7 @@ class MenuSnapshotTest {
     }
     @Test void invalidTransportAndOversizedExpansionAreRejected()throws Exception{
         assertThrows(IOException.class,()->MenuSnapshot.decode(List.of("not-base64")));
-        var bytes=new ByteArrayOutputStream();try(var zip=new GZIPOutputStream(bytes)){zip.write(new byte[512*1024+1]);}
+        var bytes=new ByteArrayOutputStream();try(var zip=new GZIPOutputStream(bytes)){zip.write(new byte[2*1024*1024+1]);}
         String bomb=Base64.getEncoder().encodeToString(bytes.toByteArray());
         assertThrows(IOException.class,()->MenuSnapshot.decode(List.of(bomb)));
         assertThrows(IllegalArgumentException.class,()->new MenuSnapshot.Entry("../bad","Bad","#FFFFFF",12,"",List.of(),MenuSnapshot.Status.UNKNOWN));

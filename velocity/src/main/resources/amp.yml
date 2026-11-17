@@ -1,0 +1,23 @@
+# Nur am Proxy konfigurieren. Es werden ausschließlich Zustände gelesen.
+# AMP beantwortet Minecraft-Pings auch bei beendetem Java-Prozess.
+enabled: false
+url: 'https://panel.example.org/'
+mode: controller
+# Nur für mode: instance (direkter Web-Endpunkt einer einzigen AMP-Instanz):
+instance-target: ''
+username: serverhub
+# Entweder lokale Werte oder die Namen vorhandener Umgebungsvariablen eintragen.
+password: ''
+password-env: ''
+token: ''
+token-env: ''
+poll-interval-seconds: 3
+stale-after-seconds: 12
+# Verknüpft eindeutige AMP-Instanz-/Friendly-Namen mit Velocity-Namen.
+# Sonst in servers.yml pro Ziel amp-instance: '<Instanz-ID oder AMP-Name>' setzen.
+auto-match: true
+states:
+  sleeping: [45, 50, PreparingForSleep, Sleeping]
+  ready: [20, Ready]
+  starting: [5, 7, 10, 30, 60, PreStart, Starting, Restarting, Waiting]
+  offline: [0, 40, 100, 200, 250, Stopped, Stopping, Failed, Suspended, Maintenance]

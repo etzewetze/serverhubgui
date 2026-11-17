@@ -10,8 +10,12 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /** The sole network menu source. Discovery only adds missing entries; it never deletes edits. */
 public final class CentralMenuConfig {
-    public record Server(MenuSnapshot.Entry entry,boolean hidden,int order,String override,List<String> sleepMarkers) {}
-    public record State(UUID revision,MenuOptions options,List<Server> servers) {}
+    public record Server(MenuSnapshot.Entry entry,boolean hidden,int order,String override,List<String> sleepMarkers,String ampInstance) {
+        public Server(MenuSnapshot.Entry entry,boolean hidden,int order,String override,List<String> markers){this(entry,hidden,order,override,markers,"");}
+    }
+    public record State(UUID revision,MenuOptions options,List<Server> servers,List<FontSource> fontSources) {
+        public State(UUID revision,MenuOptions options,List<Server> servers){this(revision,options,servers,List.of());}
+    }
     private final Path file;
     private volatile State current;
     public CentralMenuConfig(Path directory){file=directory.resolve("servers.yml");}
@@ -29,24 +33,34 @@ public final class CentralMenuConfig {
             Object parsed=new Yaml(new SafeConstructor(loader)).load(new String(input,StandardCharsets.UTF_8));
             root=mapping(parsed,"servers.yml");
             boolean migrated=false;
-            if(!Objects.equals(root.get("config-version"),3)){
+            int version=Integer.parseInt(String.valueOf(root.getOrDefault("config-version",0)));
+            if(version<3){
                 if(Objects.equals(String.valueOf(at(root,"status.ping-interval-seconds")),"10")){put(root,"status.ping-interval-seconds",1);migrated=true;}
                 if(Objects.equals(String.valueOf(at(root,"status.timeout-ms")),"2000")){put(root,"status.timeout-ms",1000);migrated=true;}
+            }
+            if(version<4){
+                if(Objects.equals(String.valueOf(at(root,"menu.button-width")),"140")){put(root,"menu.button-width",0);migrated=true;}
+                if(Objects.equals(String.valueOf(at(root,"menu.title-padding")),"12")){put(root,"menu.title-padding",48);migrated=true;}
+                if(Objects.equals(String.valueOf(at(root,"menu.title-max-width")),"320")){put(root,"menu.title-max-width",400);migrated=true;}
+            }
+            var fontSources=new ArrayList<FontSource>();if(root.get("fonts")!=null)for(var item:mapping(root.get("fonts"),"fonts").entrySet()){
+                if(item.getValue() instanceof String url)fontSources.add(new FontSource(item.getKey(),url,false));
+                else {var data=mapping(item.getValue(),"fonts."+item.getKey());fontSources.add(new FontSource(item.getKey(),string(data,"url",""),bool(data,"refresh",false)));}
             }
             Map<String,String> values=new LinkedHashMap<>();
             for(String key:MenuOptions.DEFAULTS.keySet()){Object value=at(root,key);if(value!=null)values.put(key,String.valueOf(value));}
             MenuOptions options=new MenuOptions(values);
             Map<String,Object> nodes=root.containsKey("servers")?mapping(root.get("servers"),"servers"):new LinkedHashMap<>();
             root.put("servers",nodes);
-            boolean changed=before==null||migrated||!Objects.equals(root.get("config-version"),3);
-            for(var setting:MenuOptions.DEFAULTS.entrySet())if(!setting.getKey().equals("runtime.waiting")&&at(root,setting.getKey())==null){put(root,setting.getKey(),setting.getValue());changed=true;}
-            root.put("config-version",3);
+            boolean changed=before==null||migrated||!Objects.equals(root.get("config-version"),4);
+            for(var setting:MenuOptions.DEFAULTS.entrySet())if(!setting.getKey().startsWith("runtime.")&&at(root,setting.getKey())==null){put(root,setting.getKey(),setting.getValue());changed=true;}
+            root.put("config-version",4);if(!root.containsKey("fonts")){root.put("fonts",new LinkedHashMap<>());changed=true;}
             for(String target:registered.stream().filter(Wire::validTarget).distinct().sorted(String.CASE_INSENSITIVE_ORDER).limit(Wire.MAX_SERVERS).toList()){
                 if(nodes.keySet().stream().anyMatch(key->key.equalsIgnoreCase(target)))continue;
                 var added=new LinkedHashMap<String,Object>();String name=target.replace('_',' ').replace('-',' ').strip();
                 if(name.isBlank())name=target;name=name.substring(0,1).toUpperCase(Locale.ROOT)+name.substring(1);
                 added.put("name",name);added.put("color",options.text("menu.text-color"));added.put("font-size",options.number("menu.font-size"));
-                added.put("font-family","");added.put("permission","");added.put("description",new ArrayList<String>());added.put("hidden",false);added.put("order",0);
+                added.put("font-family","");added.put("width",0);added.put("background","");added.put("background-tint","#FFFFFF");added.put("rounded",false);added.put("prefix","");added.put("hover-enabled",true);added.put("hover","");added.put("amp-instance","");added.put("permission","");added.put("description",new ArrayList<String>());added.put("hidden",false);added.put("order",0);
                 added.put("status-override","auto");added.put("sleep-motd-contains",new ArrayList<String>());
                 nodes.put(target,added);changed=true;
             }
@@ -55,19 +69,22 @@ public final class CentralMenuConfig {
                 String target=item.getKey();if(!Wire.validTarget(target)||!names.add(target.toLowerCase(Locale.ROOT)))throw new IllegalArgumentException("Ungültiges oder doppeltes Ziel: "+target);
                 var node=mapping(item.getValue(),"servers."+target);
                 if(!node.containsKey("font-family")){node.put("font-family","");nodes.put(target,node);changed=true;}
+                var styleDefaults=new LinkedHashMap<String,Object>();styleDefaults.put("width",0);styleDefaults.put("background","");styleDefaults.put("background-tint","#FFFFFF");styleDefaults.put("rounded",false);styleDefaults.put("prefix","");styleDefaults.put("hover-enabled",true);styleDefaults.put("hover","");styleDefaults.put("amp-instance","");
+                for(var setting:styleDefaults.entrySet())if(!node.containsKey(setting.getKey())){node.put(setting.getKey(),setting.getValue());nodes.put(target,node);changed=true;}
+                var style=new ServerStyle(integer(node,"width",0),string(node,"background","").replaceFirst("(?i)\\.png$","").toLowerCase(Locale.ROOT),string(node,"background-tint","#FFFFFF"),bool(node,"rounded",false),-1,-1,string(node,"prefix",""),bool(node,"hover-enabled",true),string(node,"hover",""),false);
                 String override=string(node,"status-override","auto").toLowerCase(Locale.ROOT);
                 if(!Set.of("auto","online","offline","sleeping").contains(override))throw new IllegalArgumentException(target+": status-override muss auto, online, offline oder sleeping sein");
                 var entry=new MenuSnapshot.Entry(target,string(node,"name",target),string(node,"color",options.text("menu.text-color")),
-                    integer(node,"font-size",options.number("menu.font-size")),string(node,"permission",""),strings(node.get("description")),MenuSnapshot.Status.UNKNOWN,string(node,"font-family",""));
+                    integer(node,"font-size",options.number("menu.font-size")),string(node,"permission",""),strings(node.get("description")),MenuSnapshot.Status.UNKNOWN,string(node,"font-family",""),style);
                 List<String> markers=strings(node.get("sleep-motd-contains"));
                 if(markers.size()>10||markers.stream().anyMatch(s->s.isBlank()||s.length()>128))throw new IllegalArgumentException("Ungültige Schlaf-Kennung bei "+target);
-                servers.add(new Server(entry,bool(node,"hidden",false),integer(node,"order",0),override,markers));
+                servers.add(new Server(entry,bool(node,"hidden",false),integer(node,"order",0),override,markers,string(node,"amp-instance","")));
             }
             servers.sort(Comparator.comparingInt(Server::order).thenComparing(s->s.entry.target(),String.CASE_INSENSITIVE_ORDER));
-            State next=new State(UUID.randomUUID(),options,List.copyOf(servers));
+            State next=new State(UUID.randomUUID(),options,List.copyOf(servers),List.copyOf(fontSources));
             // Validate channel size before applying or writing a discovered configuration.
             new MenuSnapshot(next.revision,options,servers.stream().filter(s->!s.hidden).limit(Wire.MAX_SERVERS).map(Server::entry).toList()).encode();
-            if(changed){if(migrated&&before!=null){Path backup=file.resolveSibling("servers-v2.4-backup.yml");if(!Files.exists(backup))Files.write(backup,before,StandardOpenOption.CREATE_NEW);}save(root,before);}
+            if(changed){if(migrated&&before!=null){Path backup=file.resolveSibling(version>=3?"servers-v2.5-backup.yml":"servers-v2.4-backup.yml");if(!Files.exists(backup))Files.write(backup,before,StandardOpenOption.CREATE_NEW);}save(root,before);}
             current=next;return next;
         }catch(IllegalArgumentException|org.yaml.snakeyaml.error.YAMLException e){throw new IOException("servers.yml: "+e.getMessage(),e);}
     }
@@ -82,7 +99,7 @@ public final class CentralMenuConfig {
         String header="# ServerHub: zentrale Netzwerk-Konfiguration. Neue Velocity-Ziele werden ergänzt.\n"
             +"# Menü/HUD unter menu, shift-f-hint und hotbar-icon; Farben als '#RRGGBB'.\n"
             +"# menu.layout: list|grid; menu.navigation: scroll|pages. Reload: /serverhubproxy reload\n"
-            +"# Schriften: sans|serif|mono|custom. Eigene TTF/OTF unter font.url oder pack/assets/serverhub/fonts/custom.ttf.\n"
+            +"# Schriften: eigene TTF/OTF in fonts/; Dateiname ist Schrift-ID. URLs und IDs unter fonts in dieser Datei.\n"
             +"# Statusintervall: status.ping-interval-seconds (Standard 1). Backend-Meldungen: status.report-port (8125/TCP zwischen Backend und Proxy).\n"
             +"# Gelb: Paper-Pause, ServerNavigator-Start oder eindeutige Schlaf-Kennung. Leere Server sind nicht automatisch schlafend.\n"
             +"# Entfernte Ziele bleiben als Einstellungen erhalten, werden aber nicht angezeigt.\n";
