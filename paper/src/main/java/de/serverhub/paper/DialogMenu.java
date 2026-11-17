@@ -44,11 +44,10 @@ final class DialogMenu {
             else {buttons.add(information(gui,text,options));buttons.add(information(gui,count?entries.size()+" Server":"",options));}
         }
         var body=new ArrayList<DialogBody>();
-        body.add(DialogBody.plainMessage(Component.newline().append(gui.heading(options.text("menu.title"),Settings.color(options.text("menu.title-color")),options)).appendNewline().appendNewline(),options.number("menu.title-max-width")));
         if(entries.isEmpty())body.add(DialogBody.plainMessage(Component.text("Keine freigegebenen Server gefunden.",NamedTextColor.GRAY),300));
         ActionButton close=button(player,navigation(gui,options,"close"),Component.text("Zurück zum Spiel"),options.number("buttons.close.width"),dispatch,player::closeDialog);
         player.showDialog(Dialog.create(builder->builder.empty()
-            .base(DialogBase.builder(Component.empty())
+            .base(DialogBase.builder(gui.fixedHeading(options))
                 .externalTitle(Component.text(options.text("menu.title"))).canCloseWithEscape(true).pause(false)
                 .afterAction(DialogBase.DialogAfterAction.CLOSE).body(body).build())
             .type(buttons.isEmpty()?DialogType.notice(close):DialogType.multiAction(buttons,close,columns))));

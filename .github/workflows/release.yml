@@ -61,7 +61,7 @@ jobs:
             "dist/Menue-Vorschau.png" \
             "dist/servers.yml" \
             --target "$GITHUB_SHA" \
-            --title "ServerHub $version – Sleep-Erkennung, ServerNavigator und bearbeitbares Pack" \
+            --title "ServerHub $version – Direkte Backend-Statusmeldungen und feste Minecraft-Dialoge" \
             --notes-file RELEASE-NOTES.md \
             --latest
       - name: Verify public release downloads

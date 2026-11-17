@@ -3,7 +3,7 @@ package de.serverhub.common;
 import java.net.*;
 
 public final class PackUrls {
-    public static final String RELEASE_URL="https://github.com/etzewetze/serverhubgui/releases/download/v2.4.0/serverhub-pack.zip";
+    public static final String RELEASE_URL="https://github.com/etzewetze/serverhubgui/releases/download/v2.5.0/serverhub-pack.zip";
     private PackUrls(){}
     public static String external(String raw){
         URI uri=URI.create(raw==null?"":raw.trim());

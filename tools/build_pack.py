@@ -99,7 +99,7 @@ def main():
     ]})
     save_json(A/'items/menu_icon.json',{'model':{'type':'minecraft:model','model':'serverhub:item/menu_icon'}})
     save_json(A/'models/item/menu_icon.json',{'parent':'minecraft:item/generated','textures':{'layer0':'serverhub:item/menu_icon'}})
-    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.4 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
+    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.5 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
     shutil.copyfile(source/'FONT-LICENSE.txt',OUT/'FONT-LICENSE.txt')
     package()
 

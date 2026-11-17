@@ -28,14 +28,19 @@ public final class CentralMenuConfig {
             var loader=new LoaderOptions();loader.setAllowDuplicateKeys(false);loader.setMaxAliasesForCollections(20);loader.setCodePointLimit(1024*1024);
             Object parsed=new Yaml(new SafeConstructor(loader)).load(new String(input,StandardCharsets.UTF_8));
             root=mapping(parsed,"servers.yml");
+            boolean migrated=false;
+            if(!Objects.equals(root.get("config-version"),3)){
+                if(Objects.equals(String.valueOf(at(root,"status.ping-interval-seconds")),"10")){put(root,"status.ping-interval-seconds",1);migrated=true;}
+                if(Objects.equals(String.valueOf(at(root,"status.timeout-ms")),"2000")){put(root,"status.timeout-ms",1000);migrated=true;}
+            }
             Map<String,String> values=new LinkedHashMap<>();
             for(String key:MenuOptions.DEFAULTS.keySet()){Object value=at(root,key);if(value!=null)values.put(key,String.valueOf(value));}
             MenuOptions options=new MenuOptions(values);
             Map<String,Object> nodes=root.containsKey("servers")?mapping(root.get("servers"),"servers"):new LinkedHashMap<>();
             root.put("servers",nodes);
-            boolean changed=before==null;
+            boolean changed=before==null||migrated||!Objects.equals(root.get("config-version"),3);
             for(var setting:MenuOptions.DEFAULTS.entrySet())if(!setting.getKey().equals("runtime.waiting")&&at(root,setting.getKey())==null){put(root,setting.getKey(),setting.getValue());changed=true;}
-            root.put("config-version",2);
+            root.put("config-version",3);
             for(String target:registered.stream().filter(Wire::validTarget).distinct().sorted(String.CASE_INSENSITIVE_ORDER).limit(Wire.MAX_SERVERS).toList()){
                 if(nodes.keySet().stream().anyMatch(key->key.equalsIgnoreCase(target)))continue;
                 var added=new LinkedHashMap<String,Object>();String name=target.replace('_',' ').replace('-',' ').strip();
@@ -62,7 +67,7 @@ public final class CentralMenuConfig {
             State next=new State(UUID.randomUUID(),options,List.copyOf(servers));
             // Validate channel size before applying or writing a discovered configuration.
             new MenuSnapshot(next.revision,options,servers.stream().filter(s->!s.hidden).limit(Wire.MAX_SERVERS).map(Server::entry).toList()).encode();
-            if(changed)save(root,before);
+            if(changed){if(migrated&&before!=null){Path backup=file.resolveSibling("servers-v2.4-backup.yml");if(!Files.exists(backup))Files.write(backup,before,StandardOpenOption.CREATE_NEW);}save(root,before);}
             current=next;return next;
         }catch(IllegalArgumentException|org.yaml.snakeyaml.error.YAMLException e){throw new IOException("servers.yml: "+e.getMessage(),e);}
     }
@@ -78,6 +83,7 @@ public final class CentralMenuConfig {
             +"# Menü/HUD unter menu, shift-f-hint und hotbar-icon; Farben als '#RRGGBB'.\n"
             +"# menu.layout: list|grid; menu.navigation: scroll|pages. Reload: /serverhubproxy reload\n"
             +"# Schriften: sans|serif|mono|custom. Eigene TTF/OTF unter font.url oder pack/assets/serverhub/fonts/custom.ttf.\n"
+            +"# Statusintervall: status.ping-interval-seconds (Standard 1). Backend-Meldungen: status.report-port (8125/TCP zwischen Backend und Proxy).\n"
             +"# Gelb: Paper-Pause, ServerNavigator-Start oder eindeutige Schlaf-Kennung. Leere Server sind nicht automatisch schlafend.\n"
             +"# Entfernte Ziele bleiben als Einstellungen erhalten, werden aber nicht angezeigt.\n";
         Path temp=Files.createTempFile(file.getParent(),"servers-",".tmp");

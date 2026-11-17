@@ -42,8 +42,17 @@ class GuiTextTest {
         }
     }
     @Test void aControlCanChooseItsOwnWidthColorsAndAlternativeFont()throws Exception {
-        var options=new MenuOptions(Map.of("text.shadow","false"));var runs=runs(new GuiText().button("Schließen",14,TextColor.color(0x123456),190,"serif",TextColor.color(0x987654),options));
+        var options=new MenuOptions(Map.of("text.shadow","false","menu.button-style","wood"));var runs=runs(new GuiText().button("Schließen",14,TextColor.color(0x123456),190,"serif",TextColor.color(0x987654),options));
         assertEquals(182,finalWidth(runs));assertTrue(runs.stream().anyMatch(r->r.font().equals("serverhub:label_serif_14")&&r.color().value()==0x123456));
         assertTrue(runs.stream().anyMatch(r->r.font().equals("serverhub:gui")&&r.color().value()==0x987654));assertFalse(runs.stream().anyMatch(r->r.font().endsWith("_shadow")));
+    }
+    @Test void minecraftButtonsLeaveTheNativeBackgroundUncovered()throws Exception {
+        var options=MenuOptions.defaults();var runs=runs(new GuiText().button("Weiter",12,NamedTextColor.WHITE,140,"sans",NamedTextColor.RED,options));
+        assertFalse(runs.stream().anyMatch(r->r.font().equals("serverhub:gui")));assertEquals(132,finalWidth(runs));
+    }
+    @Test void fixedHeadingReservesSpaceOppositeTheClientWarning()throws Exception {
+        var options=MenuOptions.defaults();var gui=new GuiText();var normal=runs(gui.heading(options.text("menu.title"),NamedTextColor.BLACK,options));var fixed=runs(gui.fixedHeading(options));
+        Run ordinary=normal.stream().filter(r->r.font().equals("serverhub:gui")).findFirst().orElseThrow();Run pinned=fixed.stream().filter(r->r.font().equals("serverhub:gui")).findFirst().orElseThrow();
+        assertEquals(24,pinned.x()-ordinary.x());assertEquals(finalWidth(normal)+24,finalWidth(fixed));
     }
 }

@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ProxyPackLifecycleTest {
+    @AfterEach void shutdown(){if(plugin!=null)plugin.shutdown(mock(com.velocitypowered.api.event.proxy.ProxyShutdownEvent.class));}
     @TempDir Path directory;
     ProxyServer proxy; Player player; ServerHubVelocity plugin;
     Scheduler.TaskBuilder task;ScheduledTask timeout; UUID packId;

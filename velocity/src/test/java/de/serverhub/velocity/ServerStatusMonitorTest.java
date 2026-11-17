@@ -9,6 +9,30 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ServerStatusMonitorTest {
+    @Test void liveBackendSleepOverridesBothGreenAndRedPingsAndExpiresSafely(){
+        var time=new java.util.concurrent.atomic.AtomicLong(10000);var monitor=new ServerStatusMonitor(time::get);var target=settings("auto",List.of());var config=new CentralMenuConfig.State(UUID.randomUUID(),MenuOptions.defaults(),List.of(target));monitor.configure(config);
+        RegisteredServer server=mock(RegisteredServer.class);when(server.getServerInfo()).thenReturn(new ServerInfo("lobby",new java.net.InetSocketAddress("127.0.0.1",25565)));
+        when(server.ping()).thenReturn(CompletableFuture.completedFuture(ping("Online")));monitor.refresh(List.of(server),config);
+        assertEquals(MenuSnapshot.Status.ONLINE,monitor.status(target,config));UUID process=UUID.randomUUID();
+        monitor.backend("lobby",new BackendStatus(process,1,true));assertEquals(MenuSnapshot.Status.SLEEPING,monitor.status(target,config));
+        when(server.ping()).thenReturn(CompletableFuture.failedFuture(new IOExceptionLike()));monitor.refresh(List.of(server),config);assertEquals(MenuSnapshot.Status.SLEEPING,monitor.status(target,config));
+        time.addAndGet(5001);monitor.refresh(List.of(server),config);assertEquals(MenuSnapshot.Status.OFFLINE,monitor.status(target,config));
+        monitor.backend("lobby",new BackendStatus(process,2,false));assertEquals(MenuSnapshot.Status.OFFLINE,monitor.status(target,config));
+        when(server.ping()).thenReturn(CompletableFuture.completedFuture(ping("Online")));monitor.refresh(List.of(server),config);assertEquals(MenuSnapshot.Status.ONLINE,monitor.status(target,config));
+    }
+    @Test void replayedReportsAndRetiredProcessesCannotRestoreAnOldSleepState(){
+        var time=new java.util.concurrent.atomic.AtomicLong(10000);var monitor=new ServerStatusMonitor(time::get);var target=settings("auto",List.of());var config=new CentralMenuConfig.State(UUID.randomUUID(),MenuOptions.defaults(),List.of(target));monitor.configure(config);
+        UUID first=UUID.randomUUID(),second=UUID.randomUUID();monitor.backend("lobby",new BackendStatus(first,1,true));monitor.backend("lobby",new BackendStatus(first,2,false));
+        monitor.backend("lobby",new BackendStatus(first,1,true));assertEquals(MenuSnapshot.Status.UNKNOWN,monitor.status(target,config));
+        monitor.backend("lobby",new BackendStatus(second,1,false));monitor.backend("lobby",new BackendStatus(first,3,true));assertEquals(MenuSnapshot.Status.UNKNOWN,monitor.status(target,config));
+        assertTrue(monitor.details(target,config).contains("WACH"));
+    }
+    @Test void aWakeReportReplacesAStaleSleepPingAndManualOverridesStillWin(){
+        var monitor=new ServerStatusMonitor();var target=settings("auto",List.of("[sleeping]"));var config=new CentralMenuConfig.State(UUID.randomUUID(),MenuOptions.defaults(),List.of(target));monitor.configure(config);
+        RegisteredServer server=mock(RegisteredServer.class);when(server.getServerInfo()).thenReturn(new ServerInfo("lobby",new java.net.InetSocketAddress("127.0.0.1",25565)));when(server.ping()).thenReturn(CompletableFuture.completedFuture(ping("[sleeping]")));monitor.refresh(List.of(server),config);
+        assertEquals(MenuSnapshot.Status.SLEEPING,monitor.status(target,config));monitor.backend("lobby",new BackendStatus(UUID.randomUUID(),1,false));assertEquals(MenuSnapshot.Status.ONLINE,monitor.status(target,config));
+        assertEquals(MenuSnapshot.Status.OFFLINE,monitor.status(settings("offline",List.of()),config));
+    }
     @Test void aPausedPaperReplyIsYellowEvenWhileItStillAcceptsPings(){
         var auto=settings("auto",List.of());String sleeping=SleepSignal.version("Paper 26.3",true);
         var reply=ServerPing.builder().version(new ServerPing.Version(774,sleeping)).description(Component.text("Willkommen")).onlinePlayers(0).maximumPlayers(100).build();

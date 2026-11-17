@@ -52,10 +52,11 @@ final class GuiText {
         String text=fit(title,family,size,options.number("menu.title-max-width")-padding*2);int w=fonts.width(text,family,size),roll=Math.max(48,w+padding*2);
         var c=new Canvas();c.background(0,roll,Settings.color(options.text("menu.title-background-color")));c.text(text,family,size,(roll-w)/2,color,options);return c.finish(roll);
     }
+    Component fixedHeading(MenuOptions options){return base().append(move(options.number("menu.title-warning-offset"))).append(heading(options.text("menu.title"),Settings.color(options.text("menu.title-color")),options));}
     Component button(String title,int size,TextColor color,int width,String family,TextColor background,MenuOptions options){return button(title,size,color,width,family,background,options,null);}
     private Component button(String title,int size,TextColor color,int width,String family,TextColor background,MenuOptions options,MenuSnapshot.Status status){
         if(family.isBlank())family=options.text("menu.font-family");
-        String text=fit(title,family,size,width-(status==null?16:40));int w=fonts.width(text,family,size);var c=new Canvas();c.at(-4);c.background(1,width,background);
+        String text=fit(title,family,size,width-(status==null?16:40));int w=fonts.width(text,family,size);var c=new Canvas();c.at(-4);if(options.text("menu.button-style").equals("wood"))c.background(1,width,background);
         if(status!=null){int rgb=switch(status){case ONLINE->0x62D86B;case OFFLINE->0xF05A56;case SLEEPING,STARTING->0xFFD15C;case UNKNOWN->0xA7ADB4;};
             c.at(6);c.value=c.value.append(Component.text("\uE300").font(Key.key("serverhub:status")).color(TextColor.color(rgb)));c.cursor+=7;
         }
@@ -63,8 +64,8 @@ final class GuiText {
     }
     Component server(Settings.Entry entry,MenuOptions options){return button(entry.name(),entry.size(),entry.color(),options.number("menu.button-width"),entry.family(),Settings.color(options.text("menu.button-background-color")),options,options.flag("status.enabled")?entry.status():null);}
     Component information(String text,int width,MenuOptions options){
-        String family=options.text("menu.font-family"),fitted=fit(text,family,8,width-16);var c=new Canvas();c.at(-4);c.background(2,width,NamedTextColor.WHITE);
-        c.text(fitted,family,8,-4+(width-fonts.width(fitted,family,8))/2,TextColor.color(0x4D3620),options);return c.finish(width-8);
+        String family=options.text("menu.font-family"),fitted=fit(text,family,8,width-16);var c=new Canvas();c.at(-4);boolean wood=options.text("menu.button-style").equals("wood");if(wood)c.background(2,width,NamedTextColor.WHITE);
+        c.text(fitted,family,8,-4+(width-fonts.width(fitted,family,8))/2,TextColor.color(wood?0x4D3620:0xB7B7B7),options);return c.finish(width-8);
     }
     Component hint(int x,int y){int horizontal=Math.clamp(x,94,512),vertical=Math.clamp(y,-32,32);return base().append(move(horizontal)).append(Component.text(String.valueOf((char)(0xE120+vertical))).font(Key.key("serverhub:hint"))).append(move(-horizontal-31));}
 }

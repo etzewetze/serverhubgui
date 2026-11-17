@@ -1,7 +1,24 @@
 # ServerHub: diese Datei steuert das gesamte Netzwerk. /serverhubproxy reload
 # Ohne Proxy: plugins/ServerHub/servers.yml und /extramenu reload.
 # Neue Velocity-Ziele werden automatisch unter servers ergänzt.
-config-version: 2
+config-version: 3
+# Status wird standardmäßig JEDE SEKUNDE geprüft und an Paper verteilt.
+status:
+  enabled: true
+  ping-interval-seconds: 1
+  timeout-ms: 1000
+  # Aktualisiert geöffnete Menüs nur bei tatsächlichen Änderungen.
+  # Dabei kann Minecraft die Scrollposition zurücksetzen.
+  refresh-open-menu: true
+  # Meldungen funktionieren auch ohne Spieler. Nur zwischen Backend und Proxy freigeben.
+  backend-reports: true
+  report-bind: '0.0.0.0'
+  report-port: 8125
+  # auto: tatsächliche Proxy-IP aus der Statusverbindung; Docker/NAT ggf. zentral anpassen.
+  report-host: auto
+  report-scheme: http
+  heartbeat-interval-seconds: 1
+  heartbeat-timeout-seconds: 5
 menu:
   title: Serverauswahl
   title-color: '#3D2817'
@@ -12,6 +29,9 @@ menu:
   text-color: '#FFF4D6'
   button-background-color: '#FFFFFF'
   button-width: 140
+  button-style: minecraft
+  # Ausgleich für Minecraft-Warnsymbol rechts vom feststehenden Titel.
+  title-warning-offset: 24
   # sans, serif, mono oder custom. Größen: 8, 10, 12, 14, 16.
   font-family: sans
   font-size: 12
@@ -38,25 +58,24 @@ buttons:
     font-size: 10
     font-family: ''
     color: '#FFF4D6'
+    # Hintergrundtönung wirkt nur mit menu.button-style: wood.
     background-color: '#FFFFFF'
   next:
     width: 140
     font-size: 10
     font-family: ''
     color: '#FFF4D6'
+    # Hintergrundtönung wirkt nur mit menu.button-style: wood.
     background-color: '#FFFFFF'
   close:
     width: 140
     font-size: 10
     font-family: ''
     color: '#FFF4D6'
+    # Hintergrundtönung wirkt nur mit menu.button-style: wood.
     background-color: '#FFFFFF'
 integration:
   servernavigator: true
-status:
-  enabled: true
-  ping-interval-seconds: 10
-  timeout-ms: 2000
 shift-f-hint:
   enabled: true
   interval-seconds: 1

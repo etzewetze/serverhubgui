@@ -11,6 +11,7 @@ import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.*;
 import com.velocitypowered.api.proxy.messages.*;
 import com.velocitypowered.api.scheduler.ScheduledTask;
+import com.velocitypowered.api.proxy.server.PingOptions;
 import de.serverhub.common.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -34,6 +35,7 @@ public final class ServerHubVelocity {
     private final CentralMenuConfig menus;
     private final ServerStatusMonitor statusMonitor=new ServerStatusMonitor();
     private ScheduledTask discoveryTask;
+    private BackendStatusReceiver statusReceiver;
     private boolean started;
     private final Object reloadLock=new Object();
     private final NavigatorBridge navigator;
@@ -46,12 +48,14 @@ public final class ServerHubVelocity {
         final String sha,url;
         final FontBook fonts;
         volatile ScheduledTask timeout;
+        volatile MenuSnapshot lastMenu;
         long lastSwitch;
         Gate(Player owner,PackData pack,String url,FontBook fonts){this.fonts=fonts;this.owner=owner;this.sha=pack.sha1();this.url=url;state=new PackGate(pack.id());}
         void cancel(){if(timeout!=null)timeout.cancel();}
     }
     @Inject public ServerHubVelocity(ProxyServer proxy,Logger logger,@DataDirectory Path directory){
         this.proxy=proxy;this.logger=logger;this.directory=directory.toAbsolutePath().normalize();this.menus=new CentralMenuConfig(this.directory);this.navigator=new NavigatorBridge(proxy);
+        statusMonitor.onChange(this::pushMenus);
     }
     @Subscribe public void initialize(ProxyInitializeEvent event){
         proxy.getChannelRegistrar().register(CHANNEL);
@@ -81,9 +85,12 @@ public final class ServerHubVelocity {
             ProxySettings next=ProxySettings.read(directory);FontBook fonts=next.pack().fonts();
             new MenuSnapshot(candidate.revision(),candidate.options(),candidate.servers().stream().filter(s->!s.hidden()).map(CentralMenuConfig.Server::entry).toList(),fonts).encode();
             synchronized(this){
+                if(statusReceiver!=null&&(!statusReceiver.bind.equals(candidate.options().text("status.report-bind"))||statusReceiver.configuredPort!=candidate.options().number("status.report-port")))throw new IOException("Status-Bind oder Port geändert: Proxy vollständig neu starten");
                 if(host!=null&&settings!=null&&(settings.port()!=next.port()||!settings.bind().equals(next.bind())))throw new IOException("HTTP-Bind oder Port geändert: Proxy vollständig neu starten");
                 if(host==null&&next.http())host=new PackHost(next.bind(),next.port(),next.pack());else if(host!=null)host.update(next.pack());
                 menus.adopt(candidate);statusMonitor.configure(candidate);currentFonts=fonts;settings=next;retainHostedPacks();
+                if(statusReceiver==null&&candidate.options().flag("status.backend-reports"))try{statusReceiver=new BackendStatusReceiver(directory,candidate.options().text("status.report-bind"),candidate.options().number("status.report-port"),target->proxy.getServer(target).isPresent(),statusMonitor::backend);}
+                catch(IOException e){logger.warn("Backend-Statuskanal konnte nicht gestartet werden: {}. Status fällt auf Pings zurück; status.report-port in servers.yml prüfen.",e.getMessage());}
             }
             logger.info("ServerHub: Paketmodus {}, SHA-1 {}. pack/ ist die bearbeitbare Quelle; neue Paketversionen gelten für neue Netzwerkverbindungen.",next.mode(),next.pack().sha1());
             if(started){scheduleDiscovery();for(Player player:proxy.getAllPlayers())sendMenu(player);}
@@ -153,7 +160,7 @@ public final class ServerHubVelocity {
             Wire.Packet packet=Wire.decode(event.getData());
             if(packet.type()==Wire.Type.HELLO){
                 links.put(p.getUniqueId(),new Link(backend.getServerInfo().getName(),packet.nonce()));
-                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);sendCatalog(p);sendMenu(p);return;
+                if(!gates.containsKey(p.getUniqueId()))offer(p); sendState(p);sendCatalog(p);sendMenu(p,true);return;
             }
             Link link=links.get(p.getUniqueId());
             if(link==null||!link.nonce().equals(packet.nonce())||!link.server().equals(backend.getServerInfo().getName()))return;
@@ -174,14 +181,18 @@ public final class ServerHubVelocity {
     }
     private void sendCatalog(Player p){send(p,Wire.Type.CATALOG,visibleServers(p).stream().map(s->s.entry().target()).toArray(String[]::new));}
     private void sendMenu(Player p){
+        sendMenu(p,false);
+    }
+    private void sendMenu(Player p,boolean force){
         var state=menus.current();if(state==null)return;
         boolean integrate=state.options().flag("integration.servernavigator");
         var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=statusMonitor.status(s,state);if(integrate&&s.override().equals("auto"))status=navigator.status(e.target(),status);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family());}).toList();
         var values=new LinkedHashMap<>(state.options().values());values.put("runtime.waiting",Boolean.toString(integrate&&navigator.waiting(p.getUniqueId())));
         Gate gate=gates.get(p.getUniqueId());FontBook fonts=gate==null?currentFonts:gate.fonts;
-        try{send(p,Wire.Type.MENU,new MenuSnapshot(state.revision(),new MenuOptions(values),entries,fonts).encode());}
+        try{var snapshot=new MenuSnapshot(state.revision(),new MenuOptions(values),entries,fonts);if(!force&&gate!=null&&snapshot.equals(gate.lastMenu))return;send(p,Wire.Type.MENU,snapshot.encode());if(gate!=null)gate.lastMenu=snapshot;}
         catch(IllegalArgumentException e){logger.warn("Zentrale Menükonfiguration kann nicht übertragen werden: {}",e.getMessage());}
     }
+    private void pushMenus(){if(menus.current()!=null)for(Player player:proxy.getAllPlayers())sendMenu(player);}
     private void scheduleDiscovery(){
         if(discoveryTask!=null)discoveryTask.cancel();
         discoveryTask=proxy.getScheduler().buildTask(this,()->{
@@ -190,7 +201,12 @@ public final class ServerHubVelocity {
                 refreshRegistered();
             }catch(IOException e){logger.warn("Neue Server konnten nicht in servers.yml ergänzt werden: {}",e.getMessage());}
             var menu=menus.current();
-            if(menu.options().flag("status.enabled"))statusMonitor.refresh(proxy.getAllServers(),menu);
+            if(menu.options().flag("status.enabled"))statusMonitor.refresh(proxy.getAllServers(),menu,server->{
+                var receiver=statusReceiver;
+                if(receiver==null||!menu.options().flag("status.backend-reports"))return server.ping();
+                return server.ping(PingOptions.builder().virtualHost(receiver.link(server.getServerInfo().getName(),menu.options()).virtualHost()).timeout(Duration.ofMillis(menu.options().number("status.timeout-ms"))).build());
+            });
+            pushMenus();
         }).delay(Duration.ofSeconds(1)).repeat(Duration.ofSeconds(menus.current().options().number("status.ping-interval-seconds"))).schedule();
     }
     void refreshRegistered()throws IOException {
@@ -223,6 +239,7 @@ public final class ServerHubVelocity {
     @Subscribe public void shutdown(ProxyShutdownEvent event){
         for(Gate g:gates.values())g.cancel();gates.clear();links.clear();
         if(host!=null)host.close();
+        if(statusReceiver!=null)statusReceiver.close();
         if(discoveryTask!=null)discoveryTask.cancel();
         diagnostics.shutdownNow();
     }
@@ -238,6 +255,7 @@ public final class ServerHubVelocity {
             }else if(i.arguments()[0].equalsIgnoreCase("status")){
                 var c=settings;
                 i.source().sendMessage(Component.text(c==null?"ServerHub-Konfiguration fehlerhaft.":"Paketpflicht aktiv; Modus "+c.mode()+"; SHA-1 "+c.pack().sha1()+"; Netzwerksitzungen "+gates.size()+"; zentrale Datei servers.yml; erfasste Ziele "+menus.current().servers().size()));
+                var state=menus.current();if(state!=null){i.source().sendMessage(Component.text("Statusintervall: "+state.options().number("status.ping-interval-seconds")+" s; Backend-Statuskanal: "+(statusReceiver==null?"nicht aktiv":statusReceiver.port()+"/TCP")));for(var server:state.servers())i.source().sendMessage(Component.text(statusMonitor.details(server,state)));}
             }else if(i.arguments()[0].equalsIgnoreCase("packcheck")){
                 var c=settings;if(c==null){i.source().sendMessage(Component.text("ServerHub-Konfiguration fehlerhaft.",NamedTextColor.RED));return;}
                 String joiningHost=i.source() instanceof Player player?player.getVirtualHost().map(a->a.getHostString()).orElse(null):null;

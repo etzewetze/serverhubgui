@@ -10,7 +10,7 @@ public record MenuOptions(Map<String,String> values) {
         m.put("menu.title","Serverauswahl");m.put("menu.title-color","#3D2817");
         m.put("menu.font-size",12);m.put("menu.text-color","#FFF4D6");
         m.put("menu.font-family","sans");m.put("menu.title-font-size",12);m.put("menu.title-padding",12);m.put("menu.title-max-width",320);
-        m.put("menu.button-width",140);m.put("menu.button-background-color","#FFFFFF");m.put("menu.title-background-color","#FFFFFF");m.put("text.shadow",true);m.put("text.shadow-color","#24180E");
+        m.put("menu.button-width",140);m.put("menu.button-style","minecraft");m.put("menu.title-warning-offset",24);m.put("menu.button-background-color","#FFFFFF");m.put("menu.title-background-color","#FFFFFF");m.put("text.shadow",true);m.put("text.shadow-color","#24180E");
         m.put("font.url","");m.put("font.refresh",false);m.put("integration.servernavigator",true);m.put("runtime.waiting",false);
         m.put("menu.layout","list");m.put("menu.navigation","scroll");m.put("menu.page-size",6);
         m.put("menu.show-page-info",true);m.put("menu.show-server-count",false);m.put("menu.single-page-info",false);
@@ -19,7 +19,8 @@ public record MenuOptions(Map<String,String> values) {
             m.put("buttons."+button+".font-size",10);m.put("buttons."+button+".color","#FFF4D6");
             m.put("buttons."+button+".font-family","");m.put("buttons."+button+".width",140);m.put("buttons."+button+".background-color","#FFFFFF");
         }
-        m.put("status.enabled",true);m.put("status.ping-interval-seconds",10);m.put("status.timeout-ms",2000);
+        m.put("status.enabled",true);m.put("status.ping-interval-seconds",1);m.put("status.timeout-ms",1000);m.put("status.refresh-open-menu",true);
+        m.put("status.backend-reports",true);m.put("status.report-bind","0.0.0.0");m.put("status.report-port",8125);m.put("status.report-host","auto");m.put("status.report-scheme","http");m.put("status.heartbeat-interval-seconds",1);m.put("status.heartbeat-timeout-seconds",5);
         m.put("shift-f-hint.enabled",true);m.put("shift-f-hint.interval-seconds",1);
         m.put("shift-f-hint.x-offset",106);m.put("shift-f-hint.y-offset",0);
         m.put("hotbar-icon.enabled",false);m.put("hotbar-icon.slot",8);
@@ -47,6 +48,8 @@ public record MenuOptions(Map<String,String> values) {
         });
         if(!Set.of("list","grid").contains(next.get("menu.layout")))throw new IllegalArgumentException("menu.layout: list oder grid");
         if(!Set.of("scroll","pages").contains(next.get("menu.navigation")))throw new IllegalArgumentException("menu.navigation: scroll oder pages");
+        if(!Set.of("minecraft","wood").contains(next.get("menu.button-style")))throw new IllegalArgumentException("menu.button-style: minecraft oder wood");
+        range(next,"menu.title-warning-offset",0,40);
         font(Integer.parseInt(next.get("menu.font-size")));
         font(Integer.parseInt(next.get("menu.title-font-size")));color(next.get("text.shadow-color"));
         if(!FontBook.FAMILIES.contains(next.get("menu.font-family")))throw new IllegalArgumentException("menu.font-family: sans, serif, mono oder custom");
@@ -56,7 +59,11 @@ public record MenuOptions(Map<String,String> values) {
             if(!next.get(prefix+"font-family").isBlank()&&!FontBook.FAMILIES.contains(next.get(prefix+"font-family")))throw new IllegalArgumentException(prefix+"font-family ungültig");
         }
         color(next.get("menu.title-color"));color(next.get("menu.text-color"));color(next.get("menu.button-background-color"));color(next.get("menu.title-background-color"));
-        range(next,"menu.page-size",1,50);range(next,"status.ping-interval-seconds",3,300);
+        range(next,"menu.page-size",1,50);range(next,"status.ping-interval-seconds",1,300);
+        range(next,"status.report-port",1,65535);range(next,"status.heartbeat-interval-seconds",1,60);range(next,"status.heartbeat-timeout-seconds",3,300);
+        if(Integer.parseInt(next.get("status.heartbeat-timeout-seconds"))<Integer.parseInt(next.get("status.heartbeat-interval-seconds"))*3)throw new IllegalArgumentException("status.heartbeat-timeout-seconds muss mindestens drei Heartbeat-Intervalle umfassen");
+        if(!Set.of("http","https").contains(next.get("status.report-scheme")))throw new IllegalArgumentException("status.report-scheme: http oder https");
+        new BackendReportLink("validation",next.get("status.report-host"),Integer.parseInt(next.get("status.report-port")),next.get("status.report-scheme").equals("https"),"0".repeat(64),1000);
         range(next,"status.timeout-ms",250,10000);range(next,"hotbar-icon.slot",0,8);
         range(next,"shift-f-hint.interval-seconds",1,2);range(next,"shift-f-hint.x-offset",94,512);
         range(next,"shift-f-hint.y-offset",-32,32);range(next,"proxy.handshake-timeout-seconds",10,120);

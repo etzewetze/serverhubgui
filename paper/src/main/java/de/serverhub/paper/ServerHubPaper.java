@@ -23,6 +23,8 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
     public void sleepPing(com.destroystokyo.paper.event.server.PaperServerListPingEvent event){
         event.setVersion(SleepSignal.version(event.getVersion(),getServer().isPaused()));
+        var reporter=backendReporter;
+        if(proxyExpected&&reporter!=null){var virtual=event.getClient().getVirtualHost();if(virtual!=null)BackendReportLink.fromVirtualHost(virtual.getHostString()).ifPresent(link->reporter.configure(link,event.getAddress().getHostAddress()));}
     }
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.builder().character('&').hexColors().build();
     private final Map<UUID, Session> sessions = new HashMap<>();
@@ -32,6 +34,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     private long ticks;
     private boolean proxyExpected;
     private LocalPackDelivery localDelivery;
+    private BackendReporter backendReporter;
     private static final class Session {
         final UUID nonce = UUID.randomUUID();
         final long joined = System.currentTimeMillis();
@@ -44,6 +47,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         FontBook localFonts;
         LocalPackDelivery.State localState;
         long lastOpen, lastSwitch;
+        int menuPage;
     }
     @Override public void onEnable() {
         saveDefaultConfig();
@@ -54,6 +58,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             proxyExpected=NetworkMode.proxied(java.nio.file.Path.of("."),bootstrap.getString("network.mode","auto"));
             settings=Settings.fromNetwork(new MenuSnapshot(UUID.randomUUID(),MenuOptions.defaults(),List.of()));
             gui=new GuiText();
+            if(proxyExpected){backendReporter=new BackendReporter(getDataFolder().toPath(),getLogger()::warning);backendReporter.sample(getServer().isPaused());}
             if(!proxyExpected)try(var input=getResource("serverhub-pack.zip")){if(input==null)throw new java.io.IOException("Paket fehlt");localDelivery=new LocalPackDelivery(getDataFolder().toPath(),input.readAllBytes());}
             getLogger().info(proxyExpected?"Netzwerkmodus: Menüeinstellungen werden automatisch vom Proxy übernommen.":"Eigenständiger Server: lokale servers.yml und pack/ aktiv; kein Proxy-Timeout.");
         }
@@ -72,7 +77,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     }
     @Override public void onDisable() {
         for (Player p : Bukkit.getOnlinePlayers()) { Session s=sessions.get(p.getUniqueId()); if(s!=null&&s.menuToken!=null)p.closeDialog(); removeIcons(p); }
-        sessions.clear();if(localDelivery!=null)localDelivery.close();
+        sessions.clear();if(localDelivery!=null)localDelivery.close();if(backendReporter!=null)backendReporter.close();
     }
     private Component text(String text) { return LEGACY.deserialize(text).decoration(TextDecoration.ITALIC,false); }
     private Component message(String key) { return text(settings.yaml().getString("messages."+key, "&cServerHub: "+key)); }
@@ -124,9 +129,11 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             } else if(packet.type()==Wire.Type.MENU){
                 MenuSnapshot snapshot=MenuSnapshot.decode(packet.values());
                 Settings next=Settings.fromNetwork(snapshot);
+                boolean redraw=s.menuToken!=null&&next.menuOptions().flag("status.refresh-open-menu")&&s.central!=null&&(!s.central.entries().equals(next.entries())||!s.central.menuOptions().equals(next.menuOptions()));
                 if(!snapshot.revision().equals(s.revision))s.menuToken=null;
                 s.revision=snapshot.revision();s.central=next;s.catalog=snapshot.entries().stream().map(MenuSnapshot.Entry::target).toList();s.discovered=true;
                 applyIcon(p);
+                if(redraw)open(p,s.menuPage);
             } else if (packet.type() == Wire.Type.CATALOG) {
                 s.catalog = packet.values(); s.discovered = true;
             } else if (packet.type() == Wire.Type.RESULT) {
@@ -137,6 +144,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     }
     private void tick() {
         ticks++;
+        if(backendReporter!=null)backendReporter.sample(getServer().isPaused());
         for (Player p : Bukkit.getOnlinePlayers()) {
             Session s = sessions.get(p.getUniqueId()); if (s == null) continue;
             Settings config=effective(p);
@@ -153,6 +161,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         Session s = sessions.get(p.getUniqueId()); return s != null && s.ready && s.central!=null;
     }
     private void open(Player p,int requested) {
+        if(p.isDead())return;
         if(!p.hasPermission("serverhub.use")){p.sendMessage(message(p,"no-permission"));return;}
         Session s=sessions.get(p.getUniqueId());
         if(s==null||s.central==null){hello(p);p.sendMessage(message(p,"discovering"));return;}
@@ -160,7 +169,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         Settings config=effective(p);MenuOptions options=config.menuOptions();
         var entries=config.entries().stream().filter(e->e.permission().isBlank()||p.hasPermission(e.permission())).toList();
         int page=options.scrolling()?0:MenuLayout.clampPage(requested,entries.size(),options.number("menu.page-size"));
-        UUID token=UUID.randomUUID();s.menuToken=token;
+        UUID token=UUID.randomUUID();s.menuToken=token;s.menuPage=page;
         // Never place this dialog over a container: closing returns directly to the game.
         p.closeInventory();
         DialogMenu.show(p,gui.forSettings(config),config,entries,page,action->Bukkit.getScheduler().runTask(this,()->{
@@ -205,7 +214,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     @EventHandler public void join(PlayerJoinEvent e){startSession(e.getPlayer());}
     @EventHandler public void quit(PlayerQuitEvent e){removeIcons(e.getPlayer());sessions.remove(e.getPlayer().getUniqueId());retainLocal();}
     @EventHandler public void respawn(PlayerRespawnEvent e){Bukkit.getScheduler().runTaskLater(this,()->applyIcon(e.getPlayer()),1);}
-    @EventHandler public void death(PlayerDeathEvent e){e.getDrops().removeIf(this::isIcon);}
+    @EventHandler public void death(PlayerDeathEvent e){e.getDrops().removeIf(this::isIcon);Session session=sessions.get(e.getEntity().getUniqueId());if(session!=null)session.menuToken=null;}
     @EventHandler(ignoreCancelled=true) public void swap(PlayerSwapHandItemsEvent e){
         Player p=e.getPlayer();
         if(p.isSneaking()) {

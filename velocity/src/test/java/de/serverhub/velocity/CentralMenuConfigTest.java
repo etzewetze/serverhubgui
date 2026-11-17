@@ -8,6 +8,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import de.serverhub.common.CentralMenuConfig;
 class CentralMenuConfigTest {
+    @Test void oldDefaultStatusIntervalsUpgradeWithABackupAndOtherEditsSurvive()throws Exception{
+        String previous="config-version: 2\nstatus:\n  ping-interval-seconds: 10\n  timeout-ms: 2000\nmenu:\n  title: Unser Netzwerk\nservers: {}\n";Files.writeString(directory.resolve("servers.yml"),previous);
+        var state=new CentralMenuConfig(directory).load(List.of("lobby"));assertEquals(1,state.options().number("status.ping-interval-seconds"));assertEquals(1000,state.options().number("status.timeout-ms"));assertEquals("Unser Netzwerk",state.options().text("menu.title"));
+        assertEquals(previous,Files.readString(directory.resolve("servers-v2.4-backup.yml")));assertTrue(Files.readString(directory.resolve("servers.yml")).contains("report-port: 8125"));
+        Files.writeString(directory.resolve("servers.yml"),"config-version: 2\nstatus:\n  ping-interval-seconds: 4\n  timeout-ms: 1500\nservers: {}\n");
+        var custom=new CentralMenuConfig(directory).load(List.of());assertEquals(4,custom.options().number("status.ping-interval-seconds"));assertEquals(1500,custom.options().number("status.timeout-ms"));
+    }
     @TempDir Path directory;
     @Test void discoversAllTargetsInOneFileAndPreservesEditsWhenAnotherIsAdded()throws Exception{
         var config=new CentralMenuConfig(directory);config.load(List.of("lobby","survival"));
