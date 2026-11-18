@@ -30,7 +30,7 @@ def main():
         tests.extend(c.attrib["classname"]+"."+c.attrib["name"]for c in suite.findall("testcase"))
     if not any("UniversalJarIT"in t for t in tests):raise SystemExit("Universal platform-isolation tests did not run")
     output=ROOT/"dist";output.mkdir(exist_ok=True)
-    for path in (jar,pack,ROOT/"resource-pack-output/serverhub-pack.sha1",ROOT/"README.md",ROOT/"preview/Menue-Vorschau.png",ROOT/"velocity/src/main/resources/servers.yml",ROOT/"velocity/src/main/resources/amp.yml"):
+    for path in (jar,pack,ROOT/"resource-pack-output/serverhub-pack.sha1",ROOT/"README.md",ROOT/"preview/Menue-Vorschau.png",ROOT/"velocity/src/main/resources/servers.yml",ROOT/"common/src/main/resources/config.yml",ROOT/"velocity/src/main/resources/amp.yml"):
         shutil.copyfile(path,output/path.name)
     (output/"PRUEFUNG.txt").write_text(f"ServerHub {version}\n{len(tests)} Tests erfolgreich. Java 25; Paper 26.3; Velocity 4.2.0.\n\n"+"\n".join("OK "+t for t in tests)+"\n\nUniversal-JAR und eingebettete ZIP geprüft.\nKein vollständiger Spieltest mit verbundenem Minecraft-Client.\n")
     sums=[]
@@ -39,7 +39,7 @@ def main():
     (output/"SHA256SUMS.txt").write_text("\n".join(sums)+"\n")
     archive=output/f"ServerHub-{version}-Komplettpaket.zip"
     with zipfile.ZipFile(archive,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=9)as z:
-        for name in (jar.name,"serverhub-pack.zip","serverhub-pack.sha1","README.md","Menue-Vorschau.png","servers.yml","amp.yml","PRUEFUNG.txt","SHA256SUMS.txt"):
+        for name in (jar.name,"serverhub-pack.zip","serverhub-pack.sha1","README.md","Menue-Vorschau.png","servers.yml","config.yml","amp.yml","PRUEFUNG.txt","SHA256SUMS.txt"):
             z.write(output/name,name)
     print(f"Release {version}: {len(tests)} tests; universal JAR {jar.stat().st_size} bytes; pack SHA-1 {hashlib.sha1(pack.read_bytes()).hexdigest()}")
 

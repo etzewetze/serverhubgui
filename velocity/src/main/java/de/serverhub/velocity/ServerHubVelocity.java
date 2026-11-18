@@ -296,7 +296,7 @@ public final class ServerHubVelocity {
                 catch(Exception e){logger.warn("ServerHub-Reload abgelehnt: {}",e.getMessage());i.source().sendMessage(Component.text("Reload abgelehnt: "+e.getMessage(),NamedTextColor.RED));}});
             }else if(i.arguments()[0].equalsIgnoreCase("status")){
                 var c=settings;
-                i.source().sendMessage(Component.text(c==null?"ServerHub-Konfiguration fehlerhaft.":"Paketpflicht aktiv; Modus "+c.mode()+"; SHA-1 "+c.pack().sha1()+"; Netzwerksitzungen "+gates.size()+"; zentrale Datei servers.yml; erfasste Ziele "+menus.current().servers().size()));
+                i.source().sendMessage(Component.text(c==null?"ServerHub-Konfiguration fehlerhaft.":"Paketpflicht aktiv; Modus "+c.mode()+"; SHA-1 "+c.pack().sha1()+"; Netzwerksitzungen "+gates.size()+"; zentrale Dateien config.yml und servers.yml; erfasste Ziele "+menus.current().servers().size()));
                 var state=menus.current();if(state!=null){i.source().sendMessage(Component.text("Statusintervall: "+state.options().number("status.ping-interval-seconds")+" s; Backend-Statuskanal: "+(statusReceiver==null?"nicht aktiv":statusReceiver.port()+"/TCP")));if(amp!=null)i.source().sendMessage(Component.text(amp.diagnostic()));for(var server:state.servers())i.source().sendMessage(Component.text((amp==null?"":amp.status(server).map(value->"AMP="+value+" · ").orElse(""))+statusMonitor.details(server,state)));}
             }else if(i.arguments()[0].equalsIgnoreCase("fonts")){
                 i.source().sendMessage(Component.text("Schrift-IDs: "+String.join(", ",currentFonts.families())+". Eigene TTF/OTF in fonts/; Probleme stehen in font-problems.txt."));

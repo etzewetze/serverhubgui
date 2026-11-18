@@ -76,6 +76,10 @@ class ProxyPackLifecycleTest {
         verify(player,times(1)).sendResourcePackOffer(any());verify(timeout).cancel();
         callback.getValue().run();verify(player,never()).disconnect(any());
     }
+    @Test void aPortalUploadFailureLeavesThePreviouslyOfferedPackActive()throws Exception{
+        setup("https://example.org/working.zip");connect();Files.writeString(directory.resolve("pack/new-content.txt"),"New version");Files.writeString(directory.resolve("config.properties"),"pack.mode=external\npack.portal-enabled=true\npack.portal-url=https://portal.example\npack.portal-owner-id=2\npack.portal-token-env=SERVERHUB_TEST_MISSING_PORTAL_TOKEN\n");assertThrows(java.io.IOException.class,plugin::reload);
+        var field=ServerHubVelocity.class.getDeclaredField("settings");field.setAccessible(true);assertEquals(packId,((ProxySettings)field.get(plugin)).pack().id());assertNotEquals(packId,PackData.read(directory.resolve("serverhub-pack.zip")).id());verify(player,times(1)).sendResourcePackOffer(any());verify(player,never()).disconnect(any());
+    }
     @Test void onlyARealNetworkDisconnectStartsAnotherOffer()throws Exception{
         setup("https://example.org/serverhub.zip");connect();
         var quit=mock(DisconnectEvent.class);when(quit.getPlayer()).thenReturn(player);plugin.disconnected(quit);connect();
@@ -143,7 +147,7 @@ class ProxyPackLifecycleTest {
         when(proxy.getAllServers()).thenReturn(List.of(lobby));
         assertEquals(List.of("lobby"),catalog(connection));
         when(proxy.getAllServers()).thenReturn(List.of(event,lobby));
-        assertEquals(List.of("event","lobby"),catalog(connection));
+        assertEquals(List.of("lobby","event"),catalog(connection));
         when(proxy.getAllServers()).thenReturn(List.of(event));
         assertEquals(List.of("event"),catalog(connection));
         verify(player,times(1)).sendResourcePackOffer(any());

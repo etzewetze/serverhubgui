@@ -1,126 +1,18 @@
-# Zentrale Konfiguration: plugins/serverhub-velocity/servers.yml am Proxy.
-# /serverhubproxy reload; nach Packänderungen neu verbinden.
-# Ohne Proxy: plugins/ServerHub/servers.yml und /sh reload.
-config-version: 4
-status:
-  enabled: true
-  ping-interval-seconds: 1
-  timeout-ms: 1000
-  # AMP-Schlafmodus separat in amp.yml konfigurieren!
-  refresh-open-menu: true
-  # Native Paper-Pause: interner Meldekanal, kein Spieler nötig.
-  backend-reports: true
-  report-bind: '0.0.0.0'
-  report-port: 8125
-  report-host: auto
-  report-scheme: http
-  heartbeat-interval-seconds: 1
-  heartbeat-timeout-seconds: 5
-menu:
-  title: Serverauswahl
-  title-color: '#3D2817'
-  title-background-color: '#FFFFFF'
-  title-font-size: 12
-  title-padding: 48
-  title-max-width: 400
-  text-color: '#FFF4D6'
-  button-background-color: '#FFFFFF'
-  # 0 = automatisch anhand des Textes; sonst 80–500 GUI-Pixel.
-  button-width: 0
-  button-min-width: 180
-  button-max-width: 360
-  align-button-widths: true
-  # Bei eigenen PNGs: gerundete Grafik; native Klickfläche bleibt rechteckig.
-  rounded-buttons: false
-  button-style: minecraft
-  title-warning-offset: 24
-  # Eigene IDs entsprechen dem Dateinamen ohne .ttf/.otf.
-  font-family: sans
-  font-size: 12
-  layout: list
-  navigation: scroll
-  page-size: 6
-  show-page-info: true
-  show-server-count: false
-  single-page-info: false
-  previous: Zurück
-  next: Weiter
-  close: Schließen
-text:
-  shadow: true
-  shadow-color: '#24180E'
-hover:
-  enabled: false
-  text: |-
-    {name}
-    Status: {status}
-    Ziel: {target}
-prefix:
-  enabled: false
-  text: '{players} Spieler'
-  placeholderapi: true
-news:
-  enabled: true
-  back: '← Zurück'
-  connect: Server betreten
-# Optional mehrere direkte HTTPS-TTF/OTF-Links, z.B.:
-# fonts:
-#   meine_schrift:
-#     url: 'https://example.org/MeineSchrift.ttf'
-#     refresh: false
-# Alternativ beliebige Dateien in fonts/ im Pluginordner ablegen.
-fonts: {}
-# Bisheriger Einzellink bleibt als Schrift-ID custom unterstützt.
-font:
-  url: ''
-  refresh: false
-buttons:
-  previous:
-    width: 140
-    font-size: 10
-    font-family: ''
-    color: '#FFF4D6'
-    background-color: '#FFFFFF'
-  next:
-    width: 140
-    font-size: 10
-    font-family: ''
-    color: '#FFF4D6'
-    background-color: '#FFFFFF'
-  close:
-    width: 140
-    font-size: 10
-    font-family: ''
-    color: '#FFF4D6'
-    background-color: '#FFFFFF'
-integration:
-  servernavigator: true
-shift-f-hint:
-  enabled: true
-  interval-seconds: 1
-  x-offset: 106
-  y-offset: 0
-hotbar-icon:
-  enabled: false
-  slot: 8
-# Neue Velocity-Ziele werden automatisch ergänzt. Pro Ziel z.B.:
-# challenges:
-#   name: Challenges
-#   color: '#FFFFFF'
-#   font-size: 12
-#   font-family: ''
-#   width: 240
-#   background: challenges
-#   background-tint: '#FFFFFF'
-#   rounded: true
-#   prefix: '{players} Spieler'
-#   hover-enabled: false
-#   hover: ''
-#   amp-instance: 'AMP-Instanz-ID oder Name'
-#   status-override: auto
-#   sleep-motd-contains: []
-#   permission: ''
-#   description: []
-#   hidden: false
-#   order: 0
+# ServerHub: nur aktive, registrierte Server. Automatisch von Velocity ergänzt.
+# Reihenfolge mit sort: 1, sort: 2, ...; gleiche Werte: alphabetisch.
+# Menü, Schrift, Status und ausgeblendete Ziele: config.yml.
+# /serverhubproxy reload; ohne Proxy /sh reload.
+# Beispiel:
+# servers:
+#   lobby:
+#     name: Lobby
+#     sort: 1
+#     color: '#A8E091'
+#     font-size: 12
+#     font-family: ''
+#     width: 0
+#     background: ''
+#     rounded: false
+#     amp-instance: ''
+#     hidden: false
 servers: {}

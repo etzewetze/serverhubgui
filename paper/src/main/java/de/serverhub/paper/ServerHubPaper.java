@@ -65,7 +65,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             if(proxyExpected){backendReporter=new BackendReporter(getDataFolder().toPath(),getLogger()::warning);backendReporter.sample(getServer().isPaused());}
             if(!proxyExpected)try(var input=getResource("serverhub-pack.zip")){if(input==null)throw new java.io.IOException("Paket fehlt");localDelivery=new LocalPackDelivery(getDataFolder().toPath(),input.readAllBytes());}
             if(!proxyExpected)localNews=new NewsStore(getDataFolder().toPath());
-            getLogger().info(proxyExpected?"Netzwerkmodus: Menüeinstellungen werden automatisch vom Proxy übernommen.":"Eigenständiger Server: lokale servers.yml und pack/ aktiv; kein Proxy-Timeout.");
+            getLogger().info(proxyExpected?"Netzwerkmodus: Menüeinstellungen werden automatisch vom Proxy übernommen.":"Eigenständiger Server: lokale config.yml, servers.yml und pack/ aktiv; kein Proxy-Timeout.");
         }
         catch (Exception e) { getLogger().severe("ServerHub kann nicht starten: " + e.getMessage()); getServer().getPluginManager().disablePlugin(this); return; }
         iconKey = new NamespacedKey(this, "hotbar-menu");
@@ -272,7 +272,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
         }
         if(args.length==1&&args[0].equalsIgnoreCase("reload")) {
             if(!sender.hasPermission("serverhub.reload")){sender.sendMessage(message("no-permission"));return true;}
-            if(proxyExpected)sender.sendMessage(text("&eNetzwerkmodus: servers.yml und pack/ am Proxy bearbeiten und dort /serverhubproxy reload ausführen."));
+            if(proxyExpected)sender.sendMessage(text("&eNetzwerkmodus: config.yml, servers.yml und pack/ am Proxy bearbeiten und dort /serverhubproxy reload ausführen."));
             else Bukkit.getScheduler().runTaskAsynchronously(this,()->{try{localDelivery.reload();Bukkit.getScheduler().runTask(this,()->{for(Player p:Bukkit.getOnlinePlayers()){Session session=sessions.get(p.getUniqueId());if(session!=null){session.central=localSettings(session);session.menuToken=null;applyIcon(p);}}retainLocal();sender.sendMessage(text("&aLokale Einstellungen und pack/ neu geladen. Nach Paketänderungen neu verbinden."));});}catch(Exception e){sender.sendMessage(text("&cReload abgelehnt: "+e.getMessage()));}});
             return true;
         }

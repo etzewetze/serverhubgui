@@ -60,9 +60,10 @@ jobs:
             "dist/PRUEFUNG.txt" \
             "dist/Menue-Vorschau.png" \
             "dist/servers.yml" \
+            "dist/config.yml" \
             "dist/amp.yml" \
             --target "$GITHUB_SHA" \
-            --title "ServerHub $version – News-Fix, Offline-Schutz und AMP-Loginmeldungen" \
+            --title "ServerHub $version – Getrennte Konfiguration, Sortierung und Portal-Upload" \
             --notes-file RELEASE-NOTES.md \
             --latest
       - name: Verify public release downloads

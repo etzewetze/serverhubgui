@@ -1,8 +1,8 @@
-# ServerHub GUI 2.5.2
+# ServerHub GUI 2.5.3
 
-Zentrale Serverauswahl für Velocity: AMP-Schlafstatus, mehrere eigene Schriften, passende Buttonbreiten, eigene Button-PNGs und Server-Neuigkeiten. Version 2.5.2 korrigiert die Rollenkanten und News-Rechte, meldet den AMP-Login und verhindert Countdown-Starts für ausgeschaltete Ziele. Keine Client-Mod nötig; der feste Dialogkopf und die native Scrollliste öffnen kein Truhen- oder Spielerinventar.
+Zentrale Serverauswahl für Velocity: AMP-Schlafstatus, mehrere eigene Schriften, passende Buttonbreiten, eigene Button-PNGs und Server-Neuigkeiten. Version 2.5.3 trennt Server und allgemeine Einstellungen, ergänzt sort und verkleinert die Bannerhöhe. Ein optionaler Portal-Uploader übernimmt angepasste Packs nach erfolgreichem Upload. Keine Client-Mod nötig; der feste Dialogkopf und die native Scrollliste öffnen kein Truhen- oder Spielerinventar.
 
-[ServerHub-2.5.2.jar](https://github.com/etzewetze/serverhubgui/releases/download/v2.5.2/ServerHub-2.5.2.jar) · [Release und Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.5.2) · [ServerNavigator ab 1.2.0](https://github.com/etzewetze/ServerNavigator/releases/tag/v1.2.0)
+[ServerHub-2.5.3.jar](https://github.com/etzewetze/serverhubgui/releases/download/v2.5.3/ServerHub-2.5.3.jar) · [Release und Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.5.3) · [ServerNavigator ab 1.2.0](https://github.com/etzewetze/ServerNavigator/releases/tag/v1.2.0)
 
 **Minecraft Java / Paper 26.3, Java 25, Velocity 4.2.0 oder 4.3.0.** ServerNavigator 1.2.0 benötigt Velocity 4.3.0. Dieselbe ServerHub-JAR auf Proxy und allen Backends installieren.
 
@@ -10,13 +10,39 @@ Zentrale Serverauswahl für Velocity: AMP-Schlafstatus, mehrere eigene Schriften
 
 ## Installation und zentrale Verwaltung
 
-1. Proxy und Backends beenden, alte ServerHub-JARs durch `ServerHub-2.5.2.jar` ersetzen, dann neu starten. Menüprotokoll 3 erfordert das gemeinsame Update.
-2. Im Netzwerk ausschließlich **`plugins/serverhub-velocity/` am Proxy** bearbeiten. Alle registrierten Velocity-Ziele werden automatisch in **`servers.yml`** angelegt. Eigene Namen, Farben und Einstellungen bleiben erhalten. Entfernte Ziele behalten ihre Konfiguration, erscheinen aber nicht im Menü.
+1. Proxy und Backends beenden, alte ServerHub-JARs durch `ServerHub-2.5.3.jar` ersetzen, dann neu starten. Menüprotokoll 3 erfordert das gemeinsame Update.
+2. Im Netzwerk ausschließlich **`plugins/serverhub-velocity/` am Proxy** bearbeiten. Alle registrierten Velocity-Ziele werden automatisch in **`servers.yml`** angelegt. Eigene Namen, Farben und Einstellungen bleiben erhalten. Ausgeblendete oder entfernte Ziele werden mit ihren Einstellungen nach `config.yml` unter `inactive-servers` verschoben.
 3. `/serverhubproxy reload` prüft Einstellungen und baut das Pack. Nach einer Packänderung neu verbinden. `/serverhubproxy status`, `fonts` und `packcheck` helfen bei der Prüfung.
 
 Paper erkennt Velocity-/Bungee-Forwarding automatisch. Lokale Einstellungen und Packs werden dann ignoriert; am Backend wird kein eigener Pack-Host gestartet. `network.mode` in der lokalen `config.yml`: `auto`, `proxy`, `standalone`. Vorhandenes sicheres Proxy-Forwarding weiter verwenden.
 
 Ohne Proxy liegen dieselben Dateien unter **`plugins/ServerHub/`**. `/sh reload` lädt lokal neu; es gibt nur das lokale Ziel `local`. Die Netzwerkerkennung ermittelt keine fremden Server ohne Velocity.
+
+## Serverliste, allgemeine Einstellungen und Sortierung
+
+| Datei am Proxy | Inhalt |
+|---|---|
+| `servers.yml` | Nur registrierte, allgemein sichtbare Servereinträge. |
+| `config.yml` | Menü, Schrift-URLs, Buttons, Hover, Präfixe, Statusintervalle, HUD, Meldungen und `inactive-servers`. |
+| `config.properties` | Pack-Download, HTTP-Host und optionaler Portal-Uploader. |
+| `amp.yml` / `news.yml` | AMP-Zugang und aktive Neuigkeiten, unverändert. |
+
+Beim ersten Start werden allgemeine Optionen aus der bisherigen `servers.yml` automatisch nach `config.yml` verschoben. Die Originaldatei wird als `servers-v2.5.2-backup.yml` gesichert; eine ältere vorhandene `config.yml` wird ebenfalls gesichert. Bereits angepasste Werte bleiben erhalten. Nach dem Update die neuen Dateien bearbeiten, nicht die Sicherungen.
+
+```yaml
+# servers.yml
+servers:
+  lobby:
+    name: Lobby
+    sort: 1
+  survival:
+    name: Survival
+    sort: 2
+```
+
+`sort` sortiert numerisch aufsteigend; gleiche Werte werden nach Velocity-Namen sortiert. Bisheriges `order` wird automatisch in `sort` überführt. Stehen beide Werte im alten Eintrag, gewinnt `sort`. Neu erkannte Ziele werden hinten angefügt und können frei umsortiert werden. `/serverhubproxy reload` übernimmt die Änderung.
+
+`hidden: true` verschiebt den ganzen Eintrag nach `config.yml` → `inactive-servers`. Dort `hidden: false` setzen und neu laden, um ihn wieder einzublenden. Entfernte Velocity-Ziele werden ebenfalls archiviert und erscheinen mit ihren bisherigen Einstellungen wieder, sobald Velocity sie erneut registriert. Spielerrechte filtern weiterhin individuell; ein für einzelne Spieler gesperrter Server bleibt in der zentralen Liste.
 
 ## CubeCoders AMP: den tatsächlichen Schlafzustand lesen
 
@@ -56,6 +82,8 @@ Standardzuordnung in `amp.yml`: `Sleeping`/50 und `PreparingForSleep`/45 → Gel
 
 ## Menü, Breiten und eigene Buttongrafiken
 
+Allgemeine Werte in `config.yml`:
+
 ```yaml
 menu:
   title: Serverauswahl
@@ -75,6 +103,11 @@ menu:
   show-server-count: false
   show-page-info: true
   single-page-info: false
+```
+
+Serverdarstellung in `servers.yml`:
+
+```yaml
 servers:
   challenges:
     name: Challenges
@@ -92,7 +125,7 @@ servers:
     status-override: auto
     sleep-motd-contains: []
     hidden: false
-    order: 0
+    sort: 1
     permission: ''
     description: []
 ```
@@ -116,9 +149,19 @@ Die Standardfamilien **`sans`**, **`serif`**, **`mono`** sind bereits im Pack en
 ```yaml
 menu:
   font-family: meine_schrift
+```
+
+Ein Server kann in `servers.yml` eine andere Schrift wählen:
+
+```yaml
 servers:
   challenges:
     font-family: zweite
+```
+
+Die Bedienbuttons und Downloadquellen stehen in `config.yml`:
+
+```yaml
 buttons:
   close:
     font-family: serif
@@ -146,6 +189,23 @@ Die Einstellungen stehen in `config.properties`:
 | `self-host` | Immer eigener HTTP-Host. |
 | `external` | Direkte ZIP-URL in `pack.external-url`; muss exakt der lokal erzeugten ZIP entsprechen. |
 | `github` | Nur unveränderter Standard, eigene Dateien werden abgelehnt. |
+
+### Eigenes Down-&-Up-Portal für das Paket
+
+Der optionale Portal-Uploader lädt die vom Proxy gebaute ZIP **während des Reloads** über HTTPS hoch. Erst nach erfolgreichem Upload wird die neue Version für neu beitretende Spieler aktiv. Jede SHA-1 erhält einen eigenen Dateinamen und einen versionsgebundenen Freigabelink. Dadurch überschreibt ein späterer Reload keine noch angebotenen Versionen. Alte Portal-Dateien können nach Ende der betroffenen Sitzungen manuell entfernt werden; die Portal-Zwei-Versionen-Regel wird nicht als alleiniger Schutz laufender Downloads verwendet.
+
+Im Portal einen eigenen Nutzer anlegen, dessen ID notieren und einen API-Schlüssel erzeugen. Diesen Schlüssel als Umgebungsvariable `PORTAL_TOKEN` **im Velocity-Prozess** hinterlegen. In `plugins/serverhub-velocity/config.properties`:
+
+```properties
+pack.mode=external
+pack.portal-enabled=true
+pack.portal-url=https://downandup.deinedomain.de
+pack.portal-owner-id=2
+pack.portal-folder-id=0
+pack.portal-token-env=PORTAL_TOKEN
+```
+
+Bei aktivem Portal-Uploader bleibt `pack.external-url` leer. `/serverhubproxy reload` baut die ZIP, lädt sie in 2-MiB-Teilstücken hoch und übernimmt die versionsgebundene URL. Bei einem Uploadfehler bleibt die bisherige aktive Konfiguration bestehen. `/serverhubproxy packcheck` prüft danach die ZIP und ihren SHA-1-Wert. Das Portal muss vom Proxy und von Spielern über HTTPS erreichbar sein; der Freigabelink erlaubt den Download ohne Portal-Login. Die Datei `portal-upload.properties` speichert Freigabelinks je Paket, Portal, Nutzer, Ordner und Dateiname, niemals den API-Schlüssel. Antworten und Uploadfehler werden begrenzt verarbeitet; Weiterleitungen erhalten keinen API-Schlüssel. Bei Widerruf eines Links dessen Eintrag in der Statusdatei entfernen und erneut laden. Die Datei enthält private Downloadlinks und sollte geschützt bleiben. Die Portal-App selbst wird separat auf der Subdomain installiert.
 
 Bei SRV, Docker/NAT oder abweichenden öffentlichen Adressen **`self-host.public-host`** und **`self-host.advertised-port`** setzen. `auto` verwendet den Verbindungsnamen des Spielers. Der eingebaute Server spricht HTTP; HTTPS erfordert einen eigenen TLS-Reverse-Proxy. Bind/Port nach dem Start ändern: Proxy neu starten.
 
@@ -198,7 +258,7 @@ Aktivierte Präfixe stehen vor dem Servernamen. Ein servereigenes `prefix` über
 
 `servers.<ziel>.status-override`: `auto`, `online`, `offline`, `sleeping`. Ein Override hat Vorrang. **0 Spieler, 0 CPU oder ein erfolgreicher Porttest sind allein kein eindeutiger Schlafnachweis.** `sleep-motd-contains` kann für andere Schlafanbieter mit eindeutiger Kennung verwendet werden.
 
-**Native Paper-Pause** bleibt separat unterstützt. Das Backend liest `Server.isPaused()` und sendet authentifizierte Meldungen ohne Spielertransport an den Proxy. In `servers.yml` am Dateianfang stehen `status.ping-interval-seconds` (1), `timeout-ms` (1000), `heartbeat-interval-seconds` (1) und `heartbeat-timeout-seconds` (5). Der interne **Statusport 8125/TCP** muss nur vom Backend zum Proxy erreichbar sein und ist vom öffentlichen Packport 8124 getrennt. `report-host: auto` nutzt die Proxy-IP aus der Statusverbindung. Bei anderem Routing zentral einen Host setzen; explizite abweichende Hosts werden beim nächsten Besuch jedes Backends über den privaten Proxykanal bestätigt. Danach funktioniert der gespeicherte Meldeweg auch ohne Spieler. `status-secret.bin` und `proxy-status.properties` enthalten interne Zugangsdaten und werden automatisch verwaltet.
+**Native Paper-Pause** bleibt separat unterstützt. Das Backend liest `Server.isPaused()` und sendet authentifizierte Meldungen ohne Spielertransport an den Proxy. In `config.yml` unter `status` stehen `status.ping-interval-seconds` (1), `timeout-ms` (1000), `heartbeat-interval-seconds` (1) und `heartbeat-timeout-seconds` (5). Der interne **Statusport 8125/TCP** muss nur vom Backend zum Proxy erreichbar sein und ist vom öffentlichen Packport 8124 getrennt. `report-host: auto` nutzt die Proxy-IP aus der Statusverbindung. Bei anderem Routing zentral einen Host setzen; explizite abweichende Hosts werden beim nächsten Besuch jedes Backends über den privaten Proxykanal bestätigt. Danach funktioniert der gespeicherte Meldeweg auch ohne Spieler. `status-secret.bin` und `proxy-status.properties` enthalten interne Zugangsdaten und werden automatisch verwaltet.
 
 Geöffnete Menüs werden nur bei geänderten Werten erneuert. Der Client kann dabei die Scrollposition zurücksetzen. `status.refresh-open-menu: false` zeigt Änderungen erst beim erneuten Öffnen. Der feste Titel bleibt außerhalb der Scrollliste.
 
@@ -225,11 +285,11 @@ mvn -B clean verify
 python3 tools/prepare_release.py
 ```
 
-Java 25, Maven 3.9+, Python 3. Universal-JAR: `universal/target/ServerHub-2.5.2.jar`; Modul-JARs sind interne Builddateien. GitHub Actions prüft beide Plattformen, private Bibliotheken, AMP-API-Fixtures, News, Schriftimporte, Layoutmetriken, HTTP-Download und Paketlebenszyklus. Nach Veröffentlichung werden die öffentlichen Downloads und eingebetteten Packbytes samt Prüfsummen geprüft. Details in `PRUEFUNG.txt`.
+Java 25, Maven 3.9+, Python 3. Universal-JAR: `universal/target/ServerHub-2.5.3.jar`; Modul-JARs sind interne Builddateien. GitHub Actions prüft beide Plattformen, private Bibliotheken, AMP-API-Fixtures, News, Schriftimporte, Layoutmetriken, HTTP-Download und Paketlebenszyklus. Nach Veröffentlichung werden die öffentlichen Downloads und eingebetteten Packbytes samt Prüfsummen geprüft. Details in `PRUEFUNG.txt`.
 
-**Kein vollständiger Ingame-Test und kein Zugriff auf die konkrete AMP-Installation.** Vorschau ist eine Designreferenz. Die AMP-Abfrage ist gegen lokale API-Fixtures geprüft; Panelrechte und Zustandsdaten des eigenen Panels mit `/serverhubproxy status` kontrollieren. Bedrock/Geyser und andere Minecraft-Versionen sind nicht geprüft.
+**Kein vollständiger Ingame-Test und kein Zugriff auf die konkrete AMP- oder Portal-Installation.** Der Portal-Vertrag `start/chunk/complete/share` ist mit Protokoll-Fixtures und dem echten HTTP-Transport geprüft; ein Test gegen die separat installierte PHP-App steht aus. Vorschau ist eine Designreferenz. Die AMP-Abfrage ist gegen lokale API-Fixtures geprüft; Panelrechte und Zustandsdaten des eigenen Panels mit `/serverhubproxy status` kontrollieren. Bedrock/Geyser und andere Minecraft-Versionen sind nicht geprüft.
 
-Normale Builds verpacken eingecheckte Assets unverändert. Neugenerierung mit Pillow: `tools/build_pack.py` und `tools/render_preview.py`. Schriften werden zur Laufzeit mit Java AWT ohne Desktopfenster gerastert. Die Rollendekorationen sitzen seit 2.5.2 drei GUI-Pixel tiefer als der Mittelstreifen, sodass ihre oberen Papierkanten bündig anschließen. SnakeYAML und Gson sind privat in die Universal-JAR gepackt. DejaVu-Schriftlizenz liegt im Pack und unter `art-source/FONT-LICENSE.txt`. Die neue Pergamentgrafik ist eine originale generierte Grafik, keine Kopie des verlinkten Stockfotos; Quelle und Prompt in [BANNER-SOURCE.md](art-source/BANNER-SOURCE.md).
+Normale Builds verpacken eingecheckte Assets unverändert. Neugenerierung mit Pillow: `tools/build_pack.py` und `tools/render_preview.py`. Schriften werden zur Laufzeit mit Java AWT ohne Desktopfenster gerastert. Der Banner ist seit 2.5.3 30 statt 32 GUI-Pixel hoch; die sichtbaren Ober- und Unterkanten seiner Teile schließen bündig an. SnakeYAML und Gson sind privat in die Universal-JAR gepackt. DejaVu-Schriftlizenz liegt im Pack und unter `art-source/FONT-LICENSE.txt`. Die neue Pergamentgrafik ist eine originale generierte Grafik, keine Kopie des verlinkten Stockfotos; Quelle und Prompt in [BANNER-SOURCE.md](art-source/BANNER-SOURCE.md).
 
 - [CubeCoders AMP API](https://github.com/CubeCoders/ampapi-node)
 - [AMP Proteus: Schlafmodus und gecachte Statusantworten](https://discourse.cubecoders.com/t/amp-proteus-2-8-0-release-notes/40953)

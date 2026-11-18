@@ -1,0 +1,96 @@
+# ServerHub: allgemeine Einstellungen am Proxy; ohne Proxy lokal.
+# Aktive Server und sort: servers.yml. Pack-Download: config.properties. AMP: amp.yml.
+config-version: 5
+status:
+  enabled: true
+  ping-interval-seconds: 1
+  timeout-ms: 1000
+  refresh-open-menu: true
+  backend-reports: true
+  report-bind: 0.0.0.0
+  report-port: 8125
+  report-host: auto
+  report-scheme: http
+  heartbeat-interval-seconds: 1
+  heartbeat-timeout-seconds: 5
+menu:
+  title: Serverauswahl
+  title-color: '#3D2817'
+  title-background-color: '#FFFFFF'
+  title-font-size: 12
+  title-padding: 48
+  title-max-width: 400
+  text-color: '#FFF4D6'
+  button-background-color: '#FFFFFF'
+  button-width: 0
+  button-min-width: 180
+  button-max-width: 360
+  align-button-widths: true
+  rounded-buttons: false
+  button-style: minecraft
+  title-warning-offset: 24
+  font-family: sans
+  font-size: 12
+  layout: list
+  navigation: scroll
+  page-size: 6
+  show-page-info: true
+  show-server-count: false
+  single-page-info: false
+  previous: Zurück
+  next: Weiter
+  close: Schließen
+text:
+  shadow: true
+  shadow-color: '#24180E'
+hover:
+  enabled: false
+  text: '{name}
+
+    Status: {status}
+
+    Ziel: {target}'
+prefix:
+  enabled: false
+  text: '{players} Spieler'
+  placeholderapi: true
+news:
+  enabled: true
+  back: ← Zurück
+  connect: Server betreten
+fonts: {}
+font:
+  url: ''
+  refresh: false
+buttons:
+  previous:
+    width: 140
+    font-size: 10
+    font-family: ''
+    color: '#FFF4D6'
+    background-color: '#FFFFFF'
+  next:
+    width: 140
+    font-size: 10
+    font-family: ''
+    color: '#FFF4D6'
+    background-color: '#FFFFFF'
+  close:
+    width: 140
+    font-size: 10
+    font-family: ''
+    color: '#FFF4D6'
+    background-color: '#FFFFFF'
+integration:
+  servernavigator: true
+shift-f-hint:
+  enabled: true
+  interval-seconds: 1
+  x-offset: 106
+  y-offset: 0
+hotbar-icon:
+  enabled: false
+  slot: 8
+network:
+  mode: auto
+inactive-servers: {}

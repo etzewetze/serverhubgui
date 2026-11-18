@@ -1,19 +1,24 @@
-ServerHub 2.5.2 behebt die gemeldeten Probleme mit Rollenkanten, News und ausgeschalteten Servern.
+ServerHub 2.5.3 macht die Serverliste übersichtlicher und übernimmt den optionalen Portal-Upload aus Pull Request #1 mit zusätzlichen Prüfungen.
 
-- **Rolle bündig:** Die linke und rechte Dekoration sitzen drei GUI-Pixel tiefer. Der Mittelstreifen und der feste Titel behalten ihre Position; die Papierkanten schließen oben ohne Versatz an.
-- **AMP-Konsole:** Nach gültiger Anmeldung erscheint `AMP: Anmeldung erfolgreich.`. Danach wird die Zahl der gefundenen Serverinstanzen mit Anwendungsstatus ausgegeben. Änderungen der Anzahl werden gemeldet, unveränderte Statusabfragen erzeugen keinen Logspam. Fehler bei der Instanzabfrage bleiben separat sichtbar.
-- **Kein Countdown für ausgeschaltete Ziele:** Der Proxy prüft den Backend-/AMP-Status vor dem ServerNavigator-Aufruf. Bei OFFLINE/Rot wird weder ein neuer Navigator-Auftrag noch ein Direktwechsel gestartet. Auch ein grüner Minecraft-Cache-Ping überstimmt AMP-Stopped nicht. Eine laufende Navigator-Phase überdeckt keinen roten Backendstatus. Schlafende gelbe Ziele bleiben über Navigator weckbar.
-- **News aus der Lobby:** Das auf Paper geprüfte Recht `serverhub.news` gilt auch dann, wenn am Proxy kein eigenes Newsrecht gesetzt ist. Ein ausdrückliches Proxy-Verbot bleibt bestehen. Die Nachricht muss vom aktuellen Backend mit gültiger Sitzungskennung kommen. News sind von Verbindungsrechten getrennt und starten keinen Teleport. Fehler zeigen eigene News-Meldungen statt „Der Proxy hat den Wechsel nicht erlaubt“.
+- **Getrennte Dateien:** `servers.yml` enthält nur aktive, registrierte Server. Allgemeine Menü-, Schrift-, Status-, HUD- und Meldungseinstellungen liegen in `config.yml`. Ausgeblendete oder entfernte Ziele bleiben dort unter `inactive-servers` erhalten und lassen sich wiederherstellen. Die bisherigen Dateien werden automatisch mit Sicherung migriert. Pack- und Portal-Einstellungen bleiben in `config.properties`; AMP und News behalten ihre eigenen Dateien.
+- **Sortierung:** `sort: 1`, `sort: 2`, ... bestimmt die numerische Reihenfolge. Gleiche Werte werden alphabetisch aufgelöst. Bisheriges `order` wird übernommen; ein ausdrücklich gesetztes `sort` hat Vorrang. Neue Ziele werden hinten angefügt.
+- **Banner:** Höhe von 32 auf 30 GUI-Pixel reduziert. Die sichtbaren Ober- und Unterkanten schließen an beiden Enden bündig am Mittelstreifen an.
+- **Optionaler Portal-Uploader:** HTTPS-Upload der erzeugten ZIP vor der Freigabe für neue Spieler. API-Schlüssel aus einer Umgebungsvariable. SHA-1-Prüfung, begrenzte Antworten, geschützte Statusdatei und getrennte Dateinamen je Packhash. Alte aktive Downloadlinks werden durch weitere Uploads nicht ersetzt. Fehlgeschlagene Uploads lassen die bisher aktive Packkonfiguration bestehen. Der Upload ist standardmäßig ausgeschaltet.
 
-Befehle:
+Beispiel in `servers.yml`:
 
-```text
-/sh news start Neue Nachricht für den aktuellen Server
-/sh news stop
-/sh news start --server challenges Neue Challenge verfügbar!
-/sh news stop --server challenges
+```yaml
+servers:
+  lobby:
+    name: Lobby
+    sort: 1
+  survival:
+    name: Survival
+    sort: 2
 ```
 
-**Update:** `ServerHub-2.5.2.jar` auf Proxy und allen Paper-Backends ersetzen und neu starten. Danach neu verbinden, damit das korrigierte Ressourcenpaket geladen wird. Vorhandene Konfigurationen, AMP-Zugangsdaten, Schriften, eigene Packdateien und News bleiben erhalten. Keine neuen AMP-Zugangsdaten oder zusätzlichen Proxyrechte erforderlich.
+Danach `/serverhubproxy reload` ausführen. Für den Portal-Uploader wird die separat bereitgestellte Down-&-Up-PHP-App benötigt; Einrichtung und Umgebungsvariable stehen in der README. Die Integration ist gegen Protokoll-Fixtures geprüft, nicht gegen die konkrete Portal-Installation.
 
-Java 25, Minecraft Java/Paper 26.3, Velocity 4.2/4.3; ServerNavigator ab 1.2.0. Tests prüfen unter anderem Offline-Pings, AMP-Stopped trotz grünem Ping, weiterhin erlaubte schlafende Ziele, News ohne Proxyrecht, explizite Sperren, fremde Sitzungskennungen und die tatsächlichen Rollenkanten im Pack. Kein vollständiger Ingame-Test und kein Zugriff auf die konkrete AMP-Installation.
+**Update:** Dieselbe `ServerHub-2.5.3.jar` auf Proxy und Paper-Backends installieren, neu starten und für das geänderte Pack neu verbinden. Vorhandene Einstellungen, News, AMP-Zugangsdaten und eigene Packdateien bleiben erhalten. Das Original der bisherigen Serverdatei wird als `servers-v2.5.2-backup.yml` gesichert. Zum Wiedereinblenden eines archivierten Servers in `config.yml` unter `inactive-servers` dessen `hidden` auf `false` setzen und sicherstellen, dass Velocity das Ziel registriert hat.
+
+Java 25, Minecraft Java/Paper 26.3, Velocity 4.2/4.3; ServerNavigator ab 1.2.0. Kein vollständiger Ingame-Test.
