@@ -27,7 +27,7 @@ def main():
     original=Image.open(source/'title-banner.png').convert('RGBA')
     bounds=original.getchannel('A').point(lambda a:255 if a>=32 else 0).getbbox()
     original=original.crop(bounds)
-    scroll=original.resize((round(original.width*32/original.height),32),Image.Resampling.LANCZOS)
+    scroll=original.resize((round(original.width*30/original.height),30),Image.Resampling.LANCZOS)
     scroll.save(gui/'scroll.png')
     info=Image.new('RGBA',(140,20),'#D8BD89');di=ImageDraw.Draw(info)
     di.rectangle((0,0,139,19),outline='#8C663A');di.line((1,1,138,1),fill='#EDD7A9')
@@ -36,7 +36,7 @@ def main():
     save_json(A/'font/status.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/status.png','height':6,'ascent':6,'chars':['\uE300']}]})
     # End decorations sit three pixels below the middle so the inner paper edges meet.
     # Glyph geometry keeps the center strip and title text fixed.
-    parts=[('scroll_left',scroll.crop((0,0,40,32)),0xE400,16),('scroll_mid',scroll.crop((scroll.width//2,0,scroll.width//2+1,32)),0xE401,19),('scroll_right',scroll.crop((scroll.width-40,0,scroll.width,32)),0xE402,16),
+    parts=[('scroll_left',scroll.crop((0,0,40,30)),0xE400,15),('scroll_mid',scroll.crop((scroll.width//2,0,scroll.width//2+1,30)),0xE401,18),('scroll_right',scroll.crop((scroll.width-40,0,scroll.width,30)),0xE402,15),
            ('button_left',wood.crop((0,0,4,20)),0xE410,13),('button_mid',wood.crop((70,0,71,20)),0xE411,13),('button_right',wood.crop((136,0,140,20)),0xE412,13),
            ('info_left',info.crop((0,0,4,20)),0xE420,13),('info_mid',info.crop((70,0,71,20)),0xE421,13),('info_right',info.crop((136,0,140,20)),0xE422,13)]
     providers=[]
@@ -113,7 +113,7 @@ def main():
     ]})
     save_json(A/'items/menu_icon.json',{'model':{'type':'minecraft:model','model':'serverhub:item/menu_icon'}})
     save_json(A/'models/item/menu_icon.json',{'parent':'minecraft:item/generated','textures':{'layer0':'serverhub:item/menu_icon'}})
-    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.5.2 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
+    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.5.3 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
     shutil.copyfile(source/'FONT-LICENSE.txt',OUT/'FONT-LICENSE.txt')
     package()
 
