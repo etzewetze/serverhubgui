@@ -147,6 +147,23 @@ Die Einstellungen stehen in `config.properties`:
 | `external` | Direkte ZIP-URL in `pack.external-url`; muss exakt der lokal erzeugten ZIP entsprechen. |
 | `github` | Nur unveränderter Standard, eigene Dateien werden abgelehnt. |
 
+### Eigenes Down-&-Up-Portal für das Paket
+
+Der optionale Portal-Uploader lädt die vom Proxy gebaute ZIP **während des Reloads** über HTTPS hoch. Erst nach erfolgreichem Upload wird die neue Version für neu beitretende Spieler aktiv. Der Proxy verwendet einen Link auf genau diese Version; eine bisher angebotene Version bleibt im Portal als `_alt` für laufende Sitzungen verfügbar. Nach einer weiteren Ersetzung entfällt die ältere Version gemäß der Zwei-Versionen-Regel.
+
+Im Portal einen eigenen Nutzer anlegen, dessen ID notieren und einen API-Schlüssel erzeugen. Diesen Schlüssel als Umgebungsvariable `PORTAL_TOKEN` **im Velocity-Prozess** hinterlegen. In `plugins/serverhub-velocity/config.properties`:
+
+```properties
+pack.mode=external
+pack.portal-enabled=true
+pack.portal-url=https://downandup.deinedomain.de
+pack.portal-owner-id=2
+pack.portal-folder-id=0
+pack.portal-token-env=PORTAL_TOKEN
+```
+
+Bei aktivem Portal-Uploader bleibt `pack.external-url` leer. `/serverhubproxy reload` baut die ZIP, lädt sie in 2-MiB-Teilstücken hoch und übernimmt die versionsgebundene URL. Bei einem Uploadfehler bleibt die bisherige aktive Konfiguration bestehen. `/serverhubproxy packcheck` prüft danach die ZIP und ihren SHA-1-Wert. Das Portal muss vom Proxy und von Spielern über HTTPS erreichbar sein; der Freigabelink erlaubt den Download ohne Portal-Login. Die Datei `portal-upload.properties` speichert SHA-1 und Freigabelink für spätere Reloads, niemals den API-Schlüssel. Bei Widerruf des Links diese Statusdatei entfernen und erneut laden. Die Portal-App selbst wird separat auf der Subdomain installiert.
+
 Bei SRV, Docker/NAT oder abweichenden öffentlichen Adressen **`self-host.public-host`** und **`self-host.advertised-port`** setzen. `auto` verwendet den Verbindungsnamen des Spielers. Der eingebaute Server spricht HTTP; HTTPS erfordert einen eigenen TLS-Reverse-Proxy. Bind/Port nach dem Start ändern: Proxy neu starten.
 
 `/serverhubproxy packcheck` prüft die angebotene URL, ZIP und SHA-1 **vom Proxy aus**; zusätzlich muss dieselbe Adresse von außen erreichbar sein. Ein clientseitiger Paketfehler wird mit der konkreten Downloadadresse protokolliert. Bei Schriftproblemen `font-problems.txt` prüfen. Ohne die konkrete Schrift und den Clientfehler lässt sich die Ursache eines früheren Fehlversuchs nicht eindeutig bestimmen.
