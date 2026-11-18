@@ -29,7 +29,7 @@ public final class CentralMenuConfig {
             var settings=copy(originalConfig);var old=copy(originalServers);
             int version=integer(old,"config-version",0);boolean legacy=old.keySet().stream().anyMatch(key->!key.equals("servers"));
             // Old combined files are authoritative during migration, including existing Paper defaults.
-            for(var entry:old.entrySet())if(!Set.of("servers","config-version").contains(entry.getKey()))settings.put(entry.getKey(),entry.getValue());
+            for(var entry:old.entrySet())if(!Set.of("servers","config-version").contains(entry.getKey()))overlay(settings,entry.getKey(),entry.getValue());
             boolean upgradedDefaults=false;
             if(legacy&&version<3){
                 if(Objects.equals(String.valueOf(at(settings,"status.ping-interval-seconds")),"10")){put(settings,"status.ping-interval-seconds",1);upgradedDefaults=true;}
@@ -99,6 +99,7 @@ public final class CentralMenuConfig {
     private static byte[] resource(String name)throws IOException {try(var input=CentralMenuConfig.class.getResourceAsStream("/"+name)){if(input==null)throw new IOException("Mitgelieferte "+name+" fehlt");return input.readAllBytes();}}
     private static Map<String,Object> parse(byte[] input,String name){var loader=new LoaderOptions();loader.setAllowDuplicateKeys(false);loader.setMaxAliasesForCollections(20);loader.setCodePointLimit(1024*1024);Object value=new Yaml(new SafeConstructor(loader)).load(new String(input,StandardCharsets.UTF_8));return value==null?new LinkedHashMap<>():mapping(value,name);}
     private static Map<String,Object> copy(Map<String,Object> root){var result=new LinkedHashMap<String,Object>();root.forEach((key,value)->result.put(key,value instanceof Map<?,?>?copy(mapping(value,key)):value));return result;}
+    private static void overlay(Map<String,Object> root,String key,Object value){if(value instanceof Map<?,?>&&root.get(key) instanceof Map<?,?>){var nested=mapping(root.get(key),key);mapping(value,key).forEach((child,item)->overlay(nested,child,item));root.put(key,nested);}else root.put(key,value);}
     private void backup(String name,byte[] bytes)throws IOException {Path path=file.resolveSibling(name);for(int index=1;Files.exists(path);index++){if(Arrays.equals(Files.readAllBytes(path),bytes))return;path=file.resolveSibling(name.replace(".yml","-"+index+".yml"));}Files.write(path,bytes,StandardOpenOption.CREATE_NEW);}
     private static void unchanged(Path path,byte[] before)throws IOException {if(before==null?Files.exists(path):!Files.exists(path)||!Arrays.equals(before,Files.readAllBytes(path)))throw new IOException(path.getFileName()+" wurde gleichzeitig bearbeitet; bitte erneut laden");}
     private static byte[] encode(Map<String,Object> document,String header)throws IOException {var options=new DumperOptions();options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);options.setPrettyFlow(true);options.setIndent(2);options.setAllowUnicode(true);byte[] bytes=(header+new Yaml(options).dump(document)).getBytes(StandardCharsets.UTF_8);if(bytes.length>1024*1024)throw new IOException("Konfigurationsdatei würde größer als 1 MiB");return bytes;}
