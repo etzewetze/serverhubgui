@@ -25,8 +25,10 @@ record ProxySettings(Mode mode,String externalUrl,PackData pack,int timeout,Stri
         Mode mode;
         try{mode=Mode.valueOf(p.getProperty("pack.mode","auto").trim().replace('-','_').toUpperCase(Locale.ROOT));}
         catch(IllegalArgumentException e){throw new IOException("pack.mode muss auto, github, self-host oder external sein",e);}
+        boolean portalEnabled=Boolean.parseBoolean(p.getProperty("pack.portal-enabled","false"));
+        if(portalEnabled&&mode!=Mode.EXTERNAL)throw new IOException("pack.portal-enabled erfordert pack.mode=external");
         String external="";
-        try{if(mode==Mode.EXTERNAL)external=PackUrls.external(p.getProperty("pack.external-url",""));}
+        try{if(mode==Mode.EXTERNAL&&!portalEnabled)external=PackUrls.external(p.getProperty("pack.external-url",""));}
         catch(IllegalArgumentException e){throw new IOException(e.getMessage(),e);}
         Path packPath=directory.resolve(p.getProperty("pack.file","serverhub-pack.zip")).normalize();
         if(!packPath.startsWith(directory.normalize()))throw new IOException("pack.file muss innerhalb des Pluginordners liegen");
@@ -41,6 +43,7 @@ record ProxySettings(Mode mode,String externalUrl,PackData pack,int timeout,Stri
             try{PackUrls.selfHosted(scheme,host,advertised,"0".repeat(40));}catch(IllegalArgumentException e){throw new IOException(e.getMessage(),e);}
         }
         PackData pack=PackData.read(packPath);
+        if(portalEnabled)external=PortalPublisher.publish(directory,p,pack,packPath.getFileName().toString());
         try(var bundled=ProxySettings.class.getResourceAsStream("/serverhub-pack.zip")){
             if(bundled==null)throw new IOException("Mitgeliefertes Paket fehlt");
             boolean stock=java.util.Arrays.equals(pack.bytes(),bundled.readAllBytes());
