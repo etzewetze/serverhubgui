@@ -9,6 +9,8 @@ A=ROOT/'resource-pack/assets/serverhub'
 CODES=list(range(32,128))+list(range(160,256))
 
 def main():
+    import json
+    ascents={p['file']:p['ascent'] for p in json.loads((A/'font/gui.json').read_text())['providers'] if p['type']=='bitmap'}
     widths=dict(line.split('=')for line in (ROOT/'paper/src/main/resources/font-widths.properties').read_text().splitlines())
     atlases={(f,s):Image.open(A/f'textures/gui/latin_{f}_{s}.png').convert('RGBA')for f in ('sans','serif','mono')for s in (8,10,12,14,16)}
     positions={c:i for i,c in enumerate(CODES)}
@@ -30,8 +32,10 @@ def main():
     def background(canvas,kind,width,x,y,tint='#FFFFFF'):
         parts=[Image.open(A/f'textures/gui/{kind}_{p}.png').convert('RGBA')for p in ('left','mid','right')]
         left,middle,right=parts
-        image=Image.new('RGBA',(width,left.height));image.alpha_composite(left)
-        image.alpha_composite(middle.resize((width-left.width-right.width,middle.height)),(left.width,0));image.alpha_composite(right,(width-right.width,0))
+        levels=[ascents['serverhub:gui/'+kind+'_'+part+'.png']for part in ('left','mid','right')]
+        offsets=[max(levels)-level for level in levels]
+        image=Image.new('RGBA',(width,max(part.height+offset for part,offset in zip(parts,offsets))));image.alpha_composite(left,(0,offsets[0]))
+        image.alpha_composite(middle.resize((width-left.width-right.width,middle.height)),(left.width,offsets[1]));image.alpha_composite(right,(width-right.width,offsets[2]))
         if tint!='#FFFFFF':image=ImageChops.multiply(image,Image.new('RGBA',image.size,tint))
         canvas.alpha_composite(image,(x,y))
     def native_button(canvas,width,x,y):

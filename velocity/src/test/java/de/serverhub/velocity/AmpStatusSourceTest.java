@@ -53,4 +53,15 @@ class AmpStatusSourceTest {
     @Test void disabledAmpDoesNotClaimTargets()throws Exception {
         Files.writeString(directory.resolve("amp.yml"),"enabled: false\n");try(var source=new AmpStatusSource(AmpStatusSource.load(directory),s->{},()->{})){source.poll();assertTrue(paths.isEmpty());assertTrue(source.status(target("survival","")).isEmpty());}
     }
+    @Test void successfulLoginAndDiscoveryAreLoggedWithoutRepeatingEveryPollOrLeakingSecrets()throws Exception {
+        var info=new ArrayList<String>();var warnings=new ArrayList<String>();response.set("[{\"InstanceID\":\"survival\",\"AppState\":50}]");
+        try(var source=new AmpStatusSource(config(""),warnings::add,info::add,()->{},now::get)){
+            source.poll();assertEquals(List.of("AMP: Anmeldung erfolgreich.","AMP: 1 Serverinstanzen mit Anwendungsstatus gefunden."),info);source.poll();assertEquals(2,info.size());assertTrue(warnings.isEmpty());
+            response.set("[{\"InstanceID\":\"survival\",\"AppState\":20},{\"InstanceID\":\"creative\",\"AppState\":0}]");source.poll();assertEquals("AMP: 2 Serverinstanzen mit Anwendungsstatus gefunden.",info.getLast());
+            assertFalse(String.join(" ",info).contains("test-only"));assertFalse(String.join(" ",info).contains("fixture-session"));
+        }
+    }
+    @Test void anEmptyDiscoveryIsReportedAsZeroAndNotAsASuccessfulStatusList()throws Exception {
+        var info=new ArrayList<String>();var warnings=new ArrayList<String>();response.set("[]");try(var source=new AmpStatusSource(config(""),warnings::add,info::add,()->{},now::get)){source.poll();assertEquals("AMP: Anmeldung erfolgreich.",info.getFirst());assertTrue(info.getLast().contains("0 Serverinstanzen"));assertFalse(warnings.isEmpty());assertEquals(MenuSnapshot.Status.UNKNOWN,source.status(target("survival","")).orElseThrow());}
+    }
 }

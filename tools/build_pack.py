@@ -34,8 +34,9 @@ def main():
     info.save(gui/'info.png')
     dot=Image.new('RGBA',(6,6),(255,255,255,0));ImageDraw.Draw(dot).ellipse((0,0,5,5),fill='white');dot.save(gui/'status.png')
     save_json(A/'font/status.json',{'providers':[{'type':'bitmap','file':'serverhub:gui/status.png','height':6,'ascent':6,'chars':['\uE300']}]})
-    # Nine-slice glyphs let the client build a roll/button of the measured text width.
-    parts=[('scroll_left',scroll.crop((0,0,40,32)),0xE400,19),('scroll_mid',scroll.crop((scroll.width//2,0,scroll.width//2+1,32)),0xE401,19),('scroll_right',scroll.crop((scroll.width-40,0,scroll.width,32)),0xE402,19),
+    # End decorations sit three pixels below the middle so the inner paper edges meet.
+    # Glyph geometry keeps the center strip and title text fixed.
+    parts=[('scroll_left',scroll.crop((0,0,40,32)),0xE400,16),('scroll_mid',scroll.crop((scroll.width//2,0,scroll.width//2+1,32)),0xE401,19),('scroll_right',scroll.crop((scroll.width-40,0,scroll.width,32)),0xE402,16),
            ('button_left',wood.crop((0,0,4,20)),0xE410,13),('button_mid',wood.crop((70,0,71,20)),0xE411,13),('button_right',wood.crop((136,0,140,20)),0xE412,13),
            ('info_left',info.crop((0,0,4,20)),0xE420,13),('info_mid',info.crop((70,0,71,20)),0xE421,13),('info_right',info.crop((136,0,140,20)),0xE422,13)]
     providers=[]
@@ -112,7 +113,7 @@ def main():
     ]})
     save_json(A/'items/menu_icon.json',{'model':{'type':'minecraft:model','model':'serverhub:item/menu_icon'}})
     save_json(A/'models/item/menu_icon.json',{'parent':'minecraft:item/generated','textures':{'layer0':'serverhub:item/menu_icon'}})
-    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.5.1 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
+    save_json(OUT/'pack.mcmeta',{'pack':{'description':'ServerHub 2.5.2 · Native Dialoge · Java 26.3','min_format':[97,1],'max_format':[97,1]}})
     shutil.copyfile(source/'FONT-LICENSE.txt',OUT/'FONT-LICENSE.txt')
     package()
 

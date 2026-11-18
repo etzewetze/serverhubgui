@@ -1,8 +1,8 @@
-# ServerHub GUI 2.5.1
+# ServerHub GUI 2.5.2
 
-Zentrale Serverauswahl für Velocity: AMP-Schlafstatus, mehrere eigene Schriften, automatisch passende Buttonbreiten, eigene Button-PNGs und Server-Neuigkeiten. Keine Client-Mod nötig; der feste Dialogkopf und die native Scrollliste öffnen kein Truhen- oder Spielerinventar.
+Zentrale Serverauswahl für Velocity: AMP-Schlafstatus, mehrere eigene Schriften, passende Buttonbreiten, eigene Button-PNGs und Server-Neuigkeiten. Version 2.5.2 korrigiert die Rollenkanten und News-Rechte, meldet den AMP-Login und verhindert Countdown-Starts für ausgeschaltete Ziele. Keine Client-Mod nötig; der feste Dialogkopf und die native Scrollliste öffnen kein Truhen- oder Spielerinventar.
 
-[ServerHub-2.5.1.jar](https://github.com/etzewetze/serverhubgui/releases/download/v2.5.1/ServerHub-2.5.1.jar) · [Release und Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.5.1) · [ServerNavigator ab 1.2.0](https://github.com/etzewetze/ServerNavigator/releases/tag/v1.2.0)
+[ServerHub-2.5.2.jar](https://github.com/etzewetze/serverhubgui/releases/download/v2.5.2/ServerHub-2.5.2.jar) · [Release und Komplettpaket](https://github.com/etzewetze/serverhubgui/releases/tag/v2.5.2) · [ServerNavigator ab 1.2.0](https://github.com/etzewetze/ServerNavigator/releases/tag/v1.2.0)
 
 **Minecraft Java / Paper 26.3, Java 25, Velocity 4.2.0 oder 4.3.0.** ServerNavigator 1.2.0 benötigt Velocity 4.3.0. Dieselbe ServerHub-JAR auf Proxy und allen Backends installieren.
 
@@ -10,7 +10,7 @@ Zentrale Serverauswahl für Velocity: AMP-Schlafstatus, mehrere eigene Schriften
 
 ## Installation und zentrale Verwaltung
 
-1. Proxy und Backends beenden, alte ServerHub-JARs durch `ServerHub-2.5.1.jar` ersetzen, dann neu starten. Menüprotokoll 3 erfordert das gemeinsame Update.
+1. Proxy und Backends beenden, alte ServerHub-JARs durch `ServerHub-2.5.2.jar` ersetzen, dann neu starten. Menüprotokoll 3 erfordert das gemeinsame Update.
 2. Im Netzwerk ausschließlich **`plugins/serverhub-velocity/` am Proxy** bearbeiten. Alle registrierten Velocity-Ziele werden automatisch in **`servers.yml`** angelegt. Eigene Namen, Farben und Einstellungen bleiben erhalten. Entfernte Ziele behalten ihre Konfiguration, erscheinen aber nicht im Menü.
 3. `/serverhubproxy reload` prüft Einstellungen und baut das Pack. Nach einer Packänderung neu verbinden. `/serverhubproxy status`, `fonts` und `packcheck` helfen bei der Prüfung.
 
@@ -36,7 +36,9 @@ auto-match: true
 
 Die Vorlage enthält alle Einstellungen. Entweder Benutzer und Passwort oder Benutzer und einen gültigen AMP-Service-Login-Token verwenden. Bei Tokenanmeldung das Passwort leer lassen. Alternativ Namen vorhandener Umgebungsvariablen in `password-env` / `token-env` eintragen. Keine Webseite mit vorgeschalteter interaktiver Anmeldung verwenden. API-Dokumentation der eigenen AMP-Installation: Paneladresse plus `/API`.
 
-ServerHub verwendet ausschließlich `Core/Login` und `ADSModule/GetInstances`. Der Benutzer benötigt die passenden Session- und Instanz-Leserechte in AMP; keine Start-, Stop- oder Konsolenrechte erforderlich. Die Zugangsdaten bleiben auf dem Proxy. Der Pollingaufruf startet oder weckt selbst keinen Spielserver.
+ServerHub verwendet ausschließlich `Core/Login` und `ADSModule/GetInstances`. Nach erfolgreicher Anmeldung erscheint `AMP: Anmeldung erfolgreich.` in der Proxykonsole. Die erste Abfrage meldet die Zahl der gefundenen Serverinstanzen mit Anwendungsstatus. Die Zahl wird bei Änderungen erneut ausgegeben; unveränderte Abfragen erzeugen keine dauernden Erfolgsmeldungen. Anmeldung und Instanzabfrage werden getrennt bewertet: Eine erfolgreiche Anmeldung allein bestätigt noch keine Leserechte oder Serverdaten.
+
+Der Benutzer benötigt die passenden Session- und Instanz-Leserechte in AMP; keine Start-, Stop- oder Konsolenrechte erforderlich. Die Zugangsdaten bleiben auf dem Proxy. Der Pollingaufruf startet oder weckt selbst keinen Spielserver.
 
 Eindeutige AMP-Instanznamen bzw. FriendlyNames werden mit den Velocity-Namen verglichen. Stimmen sie nicht überein, zentral pro Ziel zuordnen:
 
@@ -164,7 +166,7 @@ Ein Pflichtpaketangebot pro Netzwerkbeitritt: Backendwechsel und Reload senden k
 
 Ohne `--server` gilt der aktuell besuchte Server. Aus der Lobby kann ein anderes Ziel angegeben werden. Maximal 4096 Zeichen, `\n` fügt einen Zeilenumbruch ein; `&`-Farbcodes werden unterstützt. Ein News-Symbol erscheint rechts im Serverbutton. Solange News aktiv sind, öffnet ein Klick auf den markierten Button die Nachricht; **„Server betreten“** führt zur vorhandenen Verbindung bzw. ServerNavigator-Warteschlange, **„← Zurück“** zur Auswahl.
 
-`serverhub.news` wird auf Paper und am Proxy benötigt; dort über das Berechtigungssystem vergeben. Die Proxykonsole kann `/serverhubproxy news start --server challenges Nachricht` und `... stop --server challenges` verwenden. Aktive Nachrichten liegen zentral in **`news.yml`** am Proxy und bleiben nach Neustarts erhalten. `news.enabled: false` blendet die Funktion im Menü aus. Ohne Proxy wird ausschließlich die lokale `news.yml` verwendet.
+`serverhub.news` wird auf dem aktuellen Paper-Backend geprüft (standardmäßig OP). Der Proxy übernimmt diese Berechtigung ausschließlich aus dem privaten, an Backend und Sitzung gebundenen Kanal. Ein ausdrücklich auf `false` gesetztes Proxyrecht `serverhub.news` sperrt die Aktion weiterhin; ein dort nicht gesetztes Recht erfordert keine zusätzliche Freigabe. News-Verwaltung benötigt kein Verbindungsrecht für das Ziel und startet keinen Serverwechsel. Ein unbekanntes Ziel oder fehlende Rechte erzeugen eine eigene News-Meldung. Die Proxykonsole kann `/serverhubproxy news start --server challenges Nachricht` und `... stop --server challenges` verwenden. Aktive Nachrichten liegen zentral in **`news.yml`** am Proxy und bleiben nach Neustarts erhalten. `news.enabled: false` blendet die Funktion im Menü aus. Ohne Proxy wird ausschließlich die lokale `news.yml` verwendet.
 
 ## Hoverinfos und optionale Präfixe
 
@@ -200,14 +202,14 @@ Aktivierte Präfixe stehen vor dem Servernamen. Ein servereigenes `prefix` über
 
 Geöffnete Menüs werden nur bei geänderten Werten erneuert. Der Client kann dabei die Scrollposition zurücksetzen. `status.refresh-open-menu: false` zeigt Änderungen erst beim erneuten Öffnen. Der feste Titel bleibt außerhalb der Scrollliste.
 
-**ServerNavigator ab 1.2.0 auf dem Proxy** wird automatisch genutzt (`integration.servernavigator: true`). Dessen Wakeup, Startprüfung, Verzögerung, Warteschlange, Berechtigungen, Cooldowns und Abbruch bleiben zuständig. ServerHub umgeht diese Abläufe nicht durch einen parallelen Direktwechsel. Während der Wartephase ruht der Shift-F-Actionbarhinweis. Die Statusfarbe sperrt keine Verbindung; ein schlafendes Ziel kann weiter über Navigator geweckt werden. Ohne Navigator bzw. für dort nicht verwaltete Ziele gilt der normale Velocity-Wechsel.
+**ServerNavigator ab 1.2.0 auf dem Proxy** wird automatisch genutzt (`integration.servernavigator: true`). Dessen Wakeup, Startprüfung, Verzögerung, Warteschlange, Berechtigungen, Cooldowns und Abbruch bleiben zuständig. ServerHub umgeht diese Abläufe nicht durch einen parallelen Direktwechsel. Während der Wartephase ruht der Shift-F-Actionbarhinweis. Ein ausdrücklich als **OFFLINE/Rot** erkanntes Ziel wird vor dem Navigator-Aufruf abgewiesen: kein neuer Warteauftrag, Countdown oder Direktwechsel. Das gilt auch für AMP-Stopped trotz grünem Cache-Ping; eine laufende Navigator-Phase verdeckt den roten Backendstatus nicht. **SLEEPING/Gelb** bleibt über Navigator weckbar. Ein Status ist eine Momentaufnahme; ein erst nach dem Klick ausfallender Server bleibt Teil der bereits begonnenen Navigator-Prüfung. Ohne Navigator bzw. für dort nicht verwaltete Ziele gilt der normale Velocity-Wechsel.
 
 ## Befehle und Rechte
 
 | Aktion | Befehl / Recht |
 |---|---|
 | Menü | `/sh`, `/serverhub`, `/extramenu`, `/extramenü`, `/extramen`; `serverhub.use` (alle) |
-| News setzen/entfernen | `/sh news start ...`, `/sh news stop`; `serverhub.news` auf Paper und Proxy |
+| News setzen/entfernen | `/sh news start ...`, `/sh news stop`; `serverhub.news` auf Paper (OP); explizites Proxy-Verbot bleibt wirksam |
 | Proxy laden | `/serverhubproxy reload`; `serverhub.proxy.reload` |
 | Diagnose | `/serverhubproxy status`, `fonts`, `packcheck`; gleiches Proxyrecht |
 | Standalone laden | `/sh reload`; `serverhub.reload` |
@@ -223,11 +225,11 @@ mvn -B clean verify
 python3 tools/prepare_release.py
 ```
 
-Java 25, Maven 3.9+, Python 3. Universal-JAR: `universal/target/ServerHub-2.5.1.jar`; Modul-JARs sind interne Builddateien. GitHub Actions prüft beide Plattformen, private Bibliotheken, AMP-API-Fixtures, News, Schriftimporte, Layoutmetriken, HTTP-Download und Paketlebenszyklus. Nach Veröffentlichung werden die öffentlichen Downloads und eingebetteten Packbytes samt Prüfsummen geprüft. Details in `PRUEFUNG.txt`.
+Java 25, Maven 3.9+, Python 3. Universal-JAR: `universal/target/ServerHub-2.5.2.jar`; Modul-JARs sind interne Builddateien. GitHub Actions prüft beide Plattformen, private Bibliotheken, AMP-API-Fixtures, News, Schriftimporte, Layoutmetriken, HTTP-Download und Paketlebenszyklus. Nach Veröffentlichung werden die öffentlichen Downloads und eingebetteten Packbytes samt Prüfsummen geprüft. Details in `PRUEFUNG.txt`.
 
 **Kein vollständiger Ingame-Test und kein Zugriff auf die konkrete AMP-Installation.** Vorschau ist eine Designreferenz. Die AMP-Abfrage ist gegen lokale API-Fixtures geprüft; Panelrechte und Zustandsdaten des eigenen Panels mit `/serverhubproxy status` kontrollieren. Bedrock/Geyser und andere Minecraft-Versionen sind nicht geprüft.
 
-Normale Builds verpacken eingecheckte Assets unverändert. Neugenerierung mit Pillow: `tools/build_pack.py` und `tools/render_preview.py`. Schriften werden zur Laufzeit mit Java AWT ohne Desktopfenster gerastert. SnakeYAML und Gson sind privat in die Universal-JAR gepackt. DejaVu-Schriftlizenz liegt im Pack und unter `art-source/FONT-LICENSE.txt`. Die neue Pergamentgrafik ist eine originale generierte Grafik, keine Kopie des verlinkten Stockfotos; Quelle und Prompt in [BANNER-SOURCE.md](art-source/BANNER-SOURCE.md).
+Normale Builds verpacken eingecheckte Assets unverändert. Neugenerierung mit Pillow: `tools/build_pack.py` und `tools/render_preview.py`. Schriften werden zur Laufzeit mit Java AWT ohne Desktopfenster gerastert. Die Rollendekorationen sitzen seit 2.5.2 drei GUI-Pixel tiefer als der Mittelstreifen, sodass ihre oberen Papierkanten bündig anschließen. SnakeYAML und Gson sind privat in die Universal-JAR gepackt. DejaVu-Schriftlizenz liegt im Pack und unter `art-source/FONT-LICENSE.txt`. Die neue Pergamentgrafik ist eine originale generierte Grafik, keine Kopie des verlinkten Stockfotos; Quelle und Prompt in [BANNER-SOURCE.md](art-source/BANNER-SOURCE.md).
 
 - [CubeCoders AMP API](https://github.com/CubeCoders/ampapi-node)
 - [AMP Proteus: Schlafmodus und gecachte Statusantworten](https://discourse.cubecoders.com/t/amp-proteus-2-8-0-release-notes/40953)

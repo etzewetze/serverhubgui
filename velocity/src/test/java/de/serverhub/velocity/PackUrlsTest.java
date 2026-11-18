@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 class PackUrlsTest {
     @Test void fixedReleaseUsesHttpsAndTheExactVersion(){
-        assertEquals("https://github.com/etzewetze/serverhubgui/releases/download/v2.5.1/serverhub-pack.zip",PackUrls.RELEASE_URL);
+        assertEquals("https://github.com/etzewetze/serverhubgui/releases/download/v2.5.2/serverhub-pack.zip",PackUrls.RELEASE_URL);
     }
     @Test void selfHostUsesTheJoiningHostWithExplicitHttpPortAndHash(){
         assertEquals("http://play.example.org:8124/serverhub.zip?sha1="+"a".repeat(40),PackUrls.selfHosted("http","play.example.org",8124,"a".repeat(40)));

@@ -10,7 +10,7 @@
       "type": "bitmap",
       "file": "serverhub:gui/scroll_left.png",
       "height": 32,
-      "ascent": 19,
+      "ascent": 16,
       "chars": [
         ""
       ]
@@ -28,7 +28,7 @@
       "type": "bitmap",
       "file": "serverhub:gui/scroll_right.png",
       "height": 32,
-      "ascent": 19,
+      "ascent": 16,
       "chars": [
         ""
       ]

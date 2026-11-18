@@ -94,7 +94,7 @@ public final class ServerHubVelocity {
                 if(host!=null&&settings!=null&&(settings.port()!=next.port()||!settings.bind().equals(next.bind())))throw new IOException("HTTP-Bind oder Port geändert: Proxy vollständig neu starten");
                 if(host==null&&next.http())host=new PackHost(next.bind(),next.port(),next.pack());else if(host!=null)host.update(next.pack());
                 menus.adopt(candidate);statusMonitor.configure(candidate);currentFonts=fonts;currentUi=ui;news=newsCandidate;settings=next;retainHostedPacks();
-                if(amp==null||!amp.config().equals(ampConfig)){if(amp!=null)amp.close();amp=new AmpStatusSource(ampConfig,logger::warn,this::pushMenus);}
+                if(amp==null||!amp.config().equals(ampConfig)){if(amp!=null)amp.close();amp=new AmpStatusSource(ampConfig,logger::warn,logger::info,this::pushMenus);}
                 if(statusReceiver==null&&candidate.options().flag("status.backend-reports"))try{statusReceiver=new BackendStatusReceiver(directory,candidate.options().text("status.report-bind"),candidate.options().number("status.report-port"),target->proxy.getServer(target).isPresent(),statusMonitor::backend);}
                 catch(IOException e){logger.warn("Backend-Statuskanal konnte nicht gestartet werden: {}. Status fällt auf Pings zurück; status.report-port in servers.yml prüfen.",e.getMessage());}
             }
@@ -197,10 +197,14 @@ public final class ServerHubVelocity {
     private void sendMenu(Player p){
         sendMenu(p,false);
     }
+    private MenuSnapshot.Status backendStatus(CentralMenuConfig.Server server,CentralMenuConfig.State state){
+        var status=statusMonitor.status(server,state);var source=amp;
+        return source!=null&&server.override().equals("auto")?source.status(server).orElse(status):status;
+    }
     private void sendMenu(Player p,boolean force){
         var state=menus.current();if(state==null)return;
         boolean integrate=state.options().flag("integration.servernavigator");
-        var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=statusMonitor.status(s,state);var source=amp;if(source!=null&&s.override().equals("auto"))status=source.status(s).orElse(status);if(integrate&&s.override().equals("auto"))status=navigator.status(e.target(),status);int online=proxy.getServer(e.target()).map(server->server.getPlayersConnected().size()).orElse(0),maximum=statusMonitor.maximum(e.target());String prefix=MenuTemplate.prefix(e.style().prefix().isBlank()?state.options().text("prefix.text"):e.style().prefix(),e.name(),e.target(),status,online,maximum);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family(),e.style().live(online,maximum,prefix,news!=null&&news.active(e.target())));}).toList();
+        var entries=visibleServers(p).stream().map(s->{var e=s.entry();var status=backendStatus(s,state);if(integrate&&s.override().equals("auto")&&status!=MenuSnapshot.Status.OFFLINE)status=navigator.status(e.target(),status);int online=proxy.getServer(e.target()).map(server->server.getPlayersConnected().size()).orElse(0),maximum=statusMonitor.maximum(e.target());String prefix=MenuTemplate.prefix(e.style().prefix().isBlank()?state.options().text("prefix.text"):e.style().prefix(),e.name(),e.target(),status,online,maximum);return new MenuSnapshot.Entry(e.target(),e.name(),e.color(),e.size(),e.permission(),e.description(),status,e.family(),e.style().live(online,maximum,prefix,news!=null&&news.active(e.target())));}).toList();
         var values=new LinkedHashMap<>(state.options().values());values.put("runtime.waiting",Boolean.toString(integrate&&navigator.waiting(p.getUniqueId())));values.put("runtime.server",p.getCurrentServer().map(server->server.getServerInfo().getName()).orElse(""));
         Gate gate=gates.get(p.getUniqueId());FontBook fonts=gate==null?currentFonts:gate.fonts;
         try{var snapshot=new MenuSnapshot(state.revision(),new MenuOptions(values),entries,fonts,gate==null?currentUi:gate.ui);if(!force&&gate!=null&&snapshot.equals(gate.lastMenu))return;send(p,Wire.Type.MENU,snapshot.encode());if(gate!=null)gate.lastMenu=snapshot;}
@@ -239,10 +243,13 @@ public final class ServerHubVelocity {
         synchronized(gate){long now=System.currentTimeMillis();if(now-gate.lastSwitch<700)return;gate.lastSwitch=now;}
         if(!target.matches("[A-Za-z0-9_.-]{1,64}")){send(p,Wire.Type.RESULT,"denied");return;}
         if(p.getPermissionValue("serverhub.connect."+target)==Tristate.FALSE){send(p,Wire.Type.RESULT,"denied");return;}
-        if(visibleServers(p).stream().noneMatch(s->s.entry().target().equalsIgnoreCase(target))){send(p,Wire.Type.RESULT,"denied");return;}
+        var destination=visibleServers(p).stream().filter(s->s.entry().target().equalsIgnoreCase(target)).findFirst().orElse(null);
+        if(destination==null){send(p,Wire.Type.RESULT,"denied");return;}
         var registered=proxy.getServer(target);
         if(registered.isEmpty()){send(p,Wire.Type.RESULT,"unavailable");return;}
         if(p.getCurrentServer().filter(c->c.getServer().equals(registered.get())).isPresent()){send(p,Wire.Type.RESULT,"already");return;}
+        // Check the real backend/AMP state before Navigator can create a queue or countdown.
+        if(backendStatus(destination,menus.current())==MenuSnapshot.Status.OFFLINE){send(p,Wire.Type.RESULT,"offline");return;}
         if(menus.current().options().flag("integration.servernavigator")){
             var result=navigator.navigate(p,target);
             if(result==NavigatorBridge.Result.HANDLED){sendMenu(p);return;}
@@ -253,11 +260,17 @@ public final class ServerHubVelocity {
         });
     }
     private void changeNews(Player player,NewsCommand operation){
-        if(!player.hasPermission("serverhub.news")||news==null||visibleServers(player).stream().noneMatch(s->s.entry().target().equalsIgnoreCase(operation.target()))){send(player,Wire.Type.RESULT,"denied");return;}
-        try{if(operation.start())news.start(operation.target(),operation.message());else news.stop(operation.target());send(player,Wire.Type.RESULT,operation.start()?"news-start":"news-stop");pushMenus();}catch(IOException e){logger.warn("Neuigkeiten konnten nicht gespeichert werden: {}",e.getMessage());send(player,Wire.Type.RESULT,"unavailable");}
+        // Only reached from the current trusted backend with its session nonce.
+        // Paper has checked serverhub.news (including its OP default). An explicit
+        // proxy denial still wins; an absent proxy permission must not erase that grant.
+        if(player.getPermissionValue("serverhub.news")==Tristate.FALSE){send(player,Wire.Type.RESULT,"news-denied");return;}
+        var state=menus.current();
+        if(news==null||state==null||proxy.getServer(operation.target()).isEmpty()||state.servers().stream().noneMatch(s->s.entry().target().equalsIgnoreCase(operation.target()))){send(player,Wire.Type.RESULT,"news-unavailable");return;}
+        // Publishing news is independent of the player's right to connect to that target.
+        try{if(operation.start())news.start(operation.target(),operation.message());else news.stop(operation.target());send(player,Wire.Type.RESULT,operation.start()?"news-start":"news-stop");pushMenus();}catch(IOException e){logger.warn("Neuigkeiten konnten nicht gespeichert werden: {}",e.getMessage());send(player,Wire.Type.RESULT,"news-unavailable");}
     }
     private void viewNews(Player player,String target){
-        Gate gate=gates.get(player.getUniqueId());if(gate==null||!gate.state.ready()||!Wire.validTarget(target)||news==null||visibleServers(player).stream().noneMatch(s->s.entry().target().equalsIgnoreCase(target))){send(player,Wire.Type.RESULT,"denied");return;}
+        Gate gate=gates.get(player.getUniqueId());if(gate==null||!gate.state.ready()||!Wire.validTarget(target)||news==null||visibleServers(player).stream().noneMatch(s->s.entry().target().equalsIgnoreCase(target))){send(player,Wire.Type.RESULT,"news-unavailable");return;}
         send(player,Wire.Type.NEWS_CONTENT,NewsCommand.content(target,news.get(target)));
     }
     @Subscribe public void shutdown(ProxyShutdownEvent event){

@@ -62,7 +62,7 @@ jobs:
             "dist/servers.yml" \
             "dist/amp.yml" \
             --target "$GITHUB_SHA" \
-            --title "ServerHub $version – AMP-Schlafstatus, eigene Schriften und Server-News" \
+            --title "ServerHub $version – News-Fix, Offline-Schutz und AMP-Loginmeldungen" \
             --notes-file RELEASE-NOTES.md \
             --latest
       - name: Verify public release downloads

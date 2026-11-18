@@ -21,13 +21,15 @@ final class AmpStatusSource implements AutoCloseable {
     record Config(boolean enabled,URI url,String username,String password,String token,int interval,int stale,boolean autoMatch,String mode,String instanceTarget,Map<String,MenuSnapshot.Status> states){}
     private record Instance(String id,String name,String friendly,String state){}
     private record Snapshot(List<Instance> instances,long time){}
-    private final Config config;private final Consumer<String> log;private final Runnable changed;private final LongSupplier clock;
+    private final Config config;private final Consumer<String> log,info;private final Runnable changed;private final LongSupplier clock;
     private final HttpClient client=HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(3)).build();
     private final ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor();private final AtomicBoolean pending=new AtomicBoolean();
     private volatile Snapshot snapshot=new Snapshot(List.of(),0);private volatile String error="Noch nicht abgefragt";private volatile boolean closed;
-    private String session="";private long nextPoll,nextLogin,lastWarning;
-    AmpStatusSource(Config config,Consumer<String> log,Runnable changed){this(config,log,changed,System::currentTimeMillis);}
-    AmpStatusSource(Config config,Consumer<String> log,Runnable changed,LongSupplier clock){this.config=config;this.log=log;this.changed=changed;this.clock=clock;}
+    private String session="";private long nextPoll,nextLogin,lastWarning;private int announcedCount=-1;
+    AmpStatusSource(Config config,Consumer<String> log,Runnable changed){this(config,log,message->{},changed,System::currentTimeMillis);}
+    AmpStatusSource(Config config,Consumer<String> log,Runnable changed,LongSupplier clock){this(config,log,message->{},changed,clock);}
+    AmpStatusSource(Config config,Consumer<String> log,Consumer<String> info,Runnable changed){this(config,log,info,changed,System::currentTimeMillis);}
+    AmpStatusSource(Config config,Consumer<String> log,Consumer<String> info,Runnable changed,LongSupplier clock){this.config=config;this.log=log;this.info=info;this.changed=changed;this.clock=clock;}
     Config config(){return config;}
     static Config load(Path directory)throws IOException {
         Path file=directory.resolve("amp.yml");if(!Files.exists(file))try(var input=AmpStatusSource.class.getResourceAsStream("/amp.yml")){if(input==null)throw new IOException("AMP-Vorlage fehlt");Files.copy(input,file);}
@@ -56,11 +58,13 @@ final class AmpStatusSource implements AutoCloseable {
                 if(now<nextLogin)return;
                 nextLogin=now+60000;var login=post("Core/Login",Map.of("username",config.username,"password",config.password,"token",config.token,"rememberMe",false),false).getAsJsonObject();
                 if(!Json.get(login,"success").isJsonPrimitive()||!Json.get(login,"success").getAsBoolean()||(session=Json.string(login,"sessionID","")).isBlank()){nextLogin=now+60000;throw new IOException("AMP-Anmeldung fehlgeschlagen; Benutzer, Service-Token/Passwort und API-Rechte prüfen");}
-                nextLogin=0;
+                nextLogin=0;announcedCount=-1;info.accept("AMP: Anmeldung erfolgreich.");
             }
             JsonElement data=post(config.mode.equals("controller")?"ADSModule/GetInstances":"Core/GetStatus",Map.of("SESSIONID",session),true);var instances=new LinkedHashMap<String,Instance>();
             if(config.mode.equals("instance")){var value=data.getAsJsonObject();String state=Json.string(value,"State","");if(!state.isBlank())instances.put(config.instanceTarget,new Instance(config.instanceTarget,config.instanceTarget,config.instanceTarget,state));}
             else collect(data,instances,0);
+            if(closed)return;
+            if(instances.size()!=announcedCount){announcedCount=instances.size();info.accept("AMP: "+announcedCount+" Serverinstanzen mit Anwendungsstatus gefunden.");}
             if(instances.isEmpty())throw new IOException("AMP liefert keine Anwendungszustände; ADSModule.GetInstances-Rechte und amp.yml mode prüfen");
             var next=new Snapshot(List.copyOf(instances.values()),clock.getAsLong());if(closed)return;boolean different=!next.instances.equals(snapshot.instances);snapshot=next;error="";if(different)changed.run();
         }catch(Exception e){if(e instanceof InterruptedException)Thread.currentThread().interrupt();if(closed)return;error=e instanceof IOException?e.getMessage():"AMP-Antwort entspricht nicht dem erwarteten API-Format";if(now-lastWarning>60000){lastWarning=now;log.accept(error);}changed.run();}

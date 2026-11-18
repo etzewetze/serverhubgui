@@ -35,6 +35,8 @@ public record MenuOptions(Map<String,String> values) {
         m.put("messages.already-connected","&eDu bist bereits auf diesem Server.");
         m.put("messages.navigator-unavailable","&cServerNavigator benötigt die Integrationsschnittstelle ab Version 1.2.0 oder ist noch nicht bereit.");
         m.put("messages.news-started","&aNeuigkeiten gespeichert.");m.put("messages.news-stopped","&aNeuigkeiten beendet.");m.put("messages.news-missing","&eFür diesen Server gibt es keine Neuigkeiten.");
+        m.put("messages.news-denied","&cDu darfst keine Server-Neuigkeiten setzen. Bitte serverhub.news prüfen.");m.put("messages.news-unavailable","&cDie Neuigkeiten für dieses Serverziel sind nicht verfügbar.");
+        m.put("messages.server-offline","&cDieser Server ist ausgeschaltet oder nicht erreichbar. Es wurde kein Serverwechsel gestartet.");
         m.put("messages.denied","&cDer Proxy hat den Wechsel nicht erlaubt.");
         DEFAULTS=Collections.unmodifiableMap(m);
     }

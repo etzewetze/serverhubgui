@@ -18,13 +18,21 @@ class PackWorkspaceTest {
         assertTrue(Files.isRegularFile(directory.resolve("pack/assets/serverhub/textures/gui/button_mid.png")));
         assertFalse(Files.exists(directory.resolve("pack-font-cache.properties.tmp")));
     }
+    @Test void theRollEndPiecesMeetTheMiddleAtTheSameVisibleTopEdge()throws Exception {
+        PackWorkspace.prepare(directory,stock(),MenuOptions.defaults());Path root=directory.resolve("pack/assets/serverhub");var definition=Json.read(Files.readString(root.resolve("font/gui.json"))).getAsJsonObject();var edges=new HashMap<String,int[]>();
+        for(var value:definition.getAsJsonArray("providers")){
+            var provider=value.getAsJsonObject();String file=Json.string(provider,"file","");if(!file.matches("serverhub:gui/scroll_(left|mid|right)\\.png"))continue;String part=file.substring(file.lastIndexOf('_')+1,file.length()-4);var image=javax.imageio.ImageIO.read(root.resolve("textures/"+file.substring("serverhub:".length())).toFile());int x=part.equals("left")?image.getWidth()-1:0,min=100,max=-100;int ascent=provider.get("ascent").getAsInt();
+            for(int y=0;y<image.getHeight();y++)if((image.getRGB(x,y)>>>24)>=128){min=Math.min(min,y-ascent);max=Math.max(max,y-ascent);}edges.put(part,new int[]{min,max});
+        }
+        assertEquals(3,edges.size());for(String side:List.of("left","right")){assertEquals(edges.get("mid")[0],edges.get(side)[0],"The roll must have no step at its upper seam");assertTrue(Math.abs(edges.get("mid")[1]-edges.get(side)[1])<=1);}
+    }
     @Test void anUntouchedTwoFourFolderUpgradesToTheExactNewGithubPack()throws Exception {
-        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");String factory=Files.readString(metadata);Files.writeString(metadata,factory.replace("ServerHub 2.5.1","ServerHub 2.4"));
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");String factory=Files.readString(metadata);Files.writeString(metadata,factory.replace("ServerHub 2.5.2","ServerHub 2.4"));
         Files.delete(directory.resolve("pack-bundled-files.properties"));
         var upgraded=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());assertArrayEquals(stock,upgraded.bytes());assertEquals(factory,Files.readString(metadata));
     }
     @Test void factoryUpgradesKeepCustomTexturesAndChooseTheEditableDeliveryMode()throws Exception {
-        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");Files.writeString(metadata,Files.readString(metadata).replace("ServerHub 2.5.1","ServerHub 2.4"));Files.delete(directory.resolve("pack-bundled-files.properties"));
+        byte[] stock=stock();PackWorkspace.prepare(directory,stock,MenuOptions.defaults());Path metadata=directory.resolve("pack/pack.mcmeta");Files.writeString(metadata,Files.readString(metadata).replace("ServerHub 2.5.2","ServerHub 2.4"));Files.delete(directory.resolve("pack-bundled-files.properties"));
         Path button=directory.resolve("pack/assets/serverhub/textures/gui/button_mid.png");var texture=javax.imageio.ImageIO.read(button.toFile());texture.setRGB(0,5,0xFF123456);javax.imageio.ImageIO.write(texture,"png",button.toFile());byte[] custom=Files.readAllBytes(button);
         Files.writeString(directory.resolve("config.properties"),"pack.mode=auto\n");var upgraded=PackWorkspace.prepare(directory,stock,MenuOptions.defaults());assertArrayEquals(custom,Files.readAllBytes(button));assertFalse(PackWorkspace.bundled(upgraded,stock));assertTrue(ProxySettings.read(directory).http());
     }

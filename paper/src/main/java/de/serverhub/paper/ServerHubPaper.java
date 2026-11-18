@@ -146,7 +146,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
             } else if (packet.type() == Wire.Type.CATALOG) {
                 s.catalog = packet.values(); s.discovered = true;
             } else if (packet.type() == Wire.Type.RESULT) {
-                String key = switch(packet.value(0)) { case "already" -> "already-connected"; case "denied" -> "denied"; case "loading" -> "loading";case "navigator" -> "navigator-unavailable";case "news-start"->"news-started";case "news-stop"->"news-stopped"; default -> "unavailable"; };
+                String key = switch(packet.value(0)) { case "already" -> "already-connected"; case "denied" -> "denied"; case "loading" -> "loading";case "offline"->"server-offline";case "navigator" -> "navigator-unavailable";case "news-start"->"news-started";case "news-stop"->"news-stopped";case "news-denied"->"news-denied";case "news-unavailable"->"news-unavailable"; default -> "unavailable"; };
                 p.sendMessage(message(p,key));
             }
         } catch (Exception ignored) { /* Untrusted or out-of-date message. */ }
@@ -263,7 +263,7 @@ public final class ServerHubPaper extends JavaPlugin implements Listener, Comman
     }
     @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] args){
         if(args.length>0&&args[0].equalsIgnoreCase("news")){
-            if(!sender.hasPermission("serverhub.news")){sender.sendMessage(message("no-permission"));return true;}
+            if(!sender.hasPermission("serverhub.news")){sender.sendMessage(sender instanceof Player player?message(player,"news-denied"):message("news-denied"));return true;}
             try{
                 String current=!proxyExpected?"local":sender instanceof Player player?effective(player).menuOptions().text("runtime.server"):"";var operation=NewsCommand.parse(args,current);
                 if(proxyExpected){if(!(sender instanceof Player player)){sender.sendMessage("Am Proxy /serverhubproxy news start --server Ziel Nachricht verwenden.");return true;}Session session=sessions.get(player.getUniqueId());if(session==null||session.central==null){player.sendMessage(message(player,"discovering"));return true;}player.sendPluginMessage(this,Wire.CHANNEL,Wire.encode(Wire.Type.NEWS_CHANGE,session.nonce,operation.wire()));}
